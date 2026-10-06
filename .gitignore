@@ -4,3 +4,5 @@ node_modules/
 *.log
 baileys_store*
 auth_info*
+
+# Railway deploy trigger
