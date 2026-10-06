@@ -1,0 +1,20 @@
+Dr. Boothe-Gooden — your client's screenshot reveals what's really happening, and it's bigger than I first thought.
+
+🚨 The real issue: UNESCO's web filter has flagged thelanguagecradle.com with Category: *malware*. That label isn't UNESCO's internal IT — it comes from a third-party URL reputation database (BrightCloud / Forcepoint / Symantec / Trend Micro). Until that's corrected, *any* organization using those databases (governments, schools, banks, corporates) will block the same way. This is a false positive but it's serious.
+
+✅ The site is clean. Valid TLS cert, HSTS preload-ready, no malware on the server. I've already verified the configuration is solid.
+
+🔧 What I'm doing right now (next 1–2 hours):
+1. Running independent clean-scan reports — VirusTotal, Google Safe Browsing, Sucuri, Mozilla Observatory — for third-party proof the site is healthy.
+2. Submitting URL recategorization requests to the major reputation databases: BrightCloud, Symantec/Broadcom, Forcepoint, Trend Micro, Cisco Talos, Google Safe Browsing, Microsoft SmartScreen.
+3. Tightening security headers + DNS records (CSP, DMARC, CAA, security.txt) so we don't get re-flagged.
+
+📨 What your client can do today (helpful, not required):
+Email their UNESCO IT Focal Point:
+"Requesting unblock of www.thelanguagecradle.com — verified clean by the site owner; the malware classification is a false positive. The site uses Vercel infrastructure with a valid TLS cert."
+
+⏱ Realistic timeline:
+• Recategorization submissions: filed today, propagation 24–72 hours.
+• UNESCO IT review (if your client escalates): typically 1–3 business days.
+
+I'll update you the moment any database responds. — Jordan

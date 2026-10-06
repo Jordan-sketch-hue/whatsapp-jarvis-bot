@@ -1,0 +1,12 @@
+{
+  "_comment": "Auto-reply fires ONLY for numbers listed here — clients only, never personal contacts. Key = full international number, digits only (e.g. 18768405862). Add a client by adding their number + a label.",
+  "allowlist": {
+    "18768405862": "Owen Ferguson — Ferguson Law",
+    "18763602586": "Levar — Ship 2 Door JA",
+    "16582182282": "Jordan — TEST",
+    "17863682528": "Test Contact",
+    "18763407255": "Dr. Gooden — Language Cradle",
+    "18765407960": "Terron — 876 DNA Test",
+    "18762769824": "Ms. Bourne"
+  }
+}
