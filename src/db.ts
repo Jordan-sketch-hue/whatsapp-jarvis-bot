@@ -1,7 +1,14 @@
 ﻿import { Pool } from "pg";
-import type { CallScores, MockupData } from "./conversation";
+import type { CallScores } from "./conversation";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+if (!process.env.DATABASE_URL) {
+  console.warn("[DB] DATABASE_URL not set — call logging will fail. Set it in Railway env vars.");
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes("supabase.co") ? { rejectUnauthorized: false } : undefined,
+});
 
 export interface CallLog {
   call_sid: string;

@@ -192,8 +192,12 @@ Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N
       }),
     });
     const data = await res.json() as any;
-    return JSON.parse(data.content?.[0]?.text?.trim() ?? "{}") as CallScores;
-  } catch {
+    const raw = data.content?.[0]?.text?.trim() ?? "";
+    // Strip any markdown code fences the model might wrap JSON in
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    return JSON.parse(jsonStr) as CallScores;
+  } catch (e: any) {
+    console.error("[SCORE] Failed to parse scores:", e.message);
     return { interest: 5, usefulness: 5, resourcefulness: 5, emotional_resonance: 5, success: 5 };
   }
 }
@@ -217,24 +221,22 @@ export class Conversation {
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
-    // ── Fix 1: Fragment / garbled input ──────────────────────────────────────
+    // ── Fragment / garbled input ──────────────────────────────────────────────
     if (isFragment(userText)) {
       return { text: "Sorry, I didn't quite catch that — could you say that again?", ended: false };
     }
 
-    // ── Fix 2: Interruption ("wait", "hold on", etc.) ────────────────────────
+    // ── Interruption ("wait", "hold on", etc.) ────────────────────────────────
     if (isInterruption(userText)) {
-      // Don't advance stage — just open the floor
       return { text: "Of course — go right ahead, I'm listening.", ended: false };
     }
 
-    // ── Fix 3: Intent-based stage override ───────────────────────────────────
+    // ── Intent-based stage override ───────────────────────────────────────────
     const intent = detectIntent(userText);
     if (intent) {
       const blocked = OVERRIDE_BLOCKED[this.stage] ?? [];
       if (!blocked.includes(intent)) {
         const targetStage = INTENT_STAGE_OVERRIDE[intent];
-        // Only jump forward, never back (except to objection/end from anywhere)
         const alwaysOverride: IntentKey[] = ["end_call", "objection"];
         const stages: Stage[] = ["greeting","qualify","mockup_offer","mockup_collect","pitch","objection_classify","objection_address","hesitation_close","close","schedule","follow_up","end"];
         const currentIdx = stages.indexOf(this.stage);
@@ -246,6 +248,12 @@ export class Conversation {
       }
     }
 
+    // ── End-phrase short-circuit (before burning an LLM call) ────────────────
+    if (this.isEndPhrase(userText)) {
+      this.stage = "end";
+      return { text: "Understood — no problem at all. Have a wonderful day!", ended: true };
+    }
+
     this.turnCount++;
     this.history.push({ role: "user", content: userText });
 
@@ -253,8 +261,9 @@ export class Conversation {
     const reply = await claudeChat(system, this.history);
     this.history.push({ role: "assistant", content: reply });
 
-    this.stage = this.nextStage(userText, reply);
-    const ended = this.stage === "end" || this.isEndPhrase(reply);
+    const newStage = this.nextStage(userText, reply);
+    const ended = newStage === "end" || this.isEndPhrase(reply);
+    this.stage = newStage;
     return { text: reply, ended };
   }
 
@@ -351,7 +360,7 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
   private nextStage(userText: string, reply: string): Stage {
     const u = userText.toLowerCase();
 
-    if (this.isEndPhrase(userText) || this.isEndPhrase(reply)) return "end";
+    if (this.isEndPhrase(reply)) return "end";
     if (this.turnCount > 22) return "end";
 
     switch (this.stage) {
@@ -360,12 +369,14 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
         return "qualify";
 
       case "qualify":
-        if (this.isPositive(u)) { this.mockup.requested = true; return "mockup_collect"; }
+        // Only treat as mockup-YES if Aria already offered it (turnCount >= 2) AND prospect agreed
+        if (this.turnCount >= 2 && this.isMockupYes(u)) { this.mockup.requested = true; return "mockup_collect"; }
         if (this.turnCount >= 3) return "mockup_offer";
         return "qualify";
 
+
       case "mockup_offer":
-        if (this.isPositive(u)) {
+        if (this.isMockupYes(u)) {
           this.mockup.requested = true;
           return "mockup_collect";
         }
@@ -413,8 +424,9 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
 
   private handleMockupCollect(userText: string): Stage {
     if (!this.mockup.wa_number) {
-      const numMatch = userText.match(/[\d\s\-\+\(\)]{7,}/);
-      if (numMatch) this.mockup.wa_number = numMatch[0].replace(/\s/g, "");
+      // Match a phone-number-shaped token: optional +, digits, spaces/dashes/parens, at least 7 digits total
+      const numMatch = userText.match(/\+?[\d][\d\s\-\(\)]{6,}\d/);
+      if (numMatch) this.mockup.wa_number = numMatch[0].replace(/[\s\-\(\)]/g, "");
       return "mockup_collect";
     }
     if (this.mockup.questions_asked === 0) {
@@ -441,6 +453,12 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
 
   private isPositive(t: string): boolean {
     return /\b(yes|yeah|yep|sure|ok|okay|alright|sounds good|let.s do|go ahead|send it|perfect|great|absolutely)\b/.test(t);
+  }
+
+  // Tighter check specifically for "yes to the mockup offer" — avoids false positive on general positive words
+  private isMockupYes(t: string): boolean {
+    return /\b(yes|yeah|yep|sure|ok|okay|alright|send it|go ahead|sounds good|absolutely|please|why not)\b/.test(t)
+      && !/\b(already have|have one|don.t need|not interested|no thanks|no thank|nope)\b/.test(t);
   }
 
   private hasObjection(t: string): boolean {
