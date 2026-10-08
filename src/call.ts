@@ -13,9 +13,6 @@ export async function initiateCall(to: string): Promise<string> {
     statusCallback: `${process.env.PUBLIC_URL}/call-status`,
     statusCallbackMethod: "POST",
     statusCallbackEvent: ["completed", "no-answer", "busy", "failed"],
-    machineDetection: "DetectMessageEnd", // voicemail detection
-    asyncAmd: "true",
-    asyncAmdStatusCallback: `${process.env.PUBLIC_URL}/amd-status`,
   });
   return call.sid;
 }
