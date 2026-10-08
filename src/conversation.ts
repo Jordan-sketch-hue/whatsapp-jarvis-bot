@@ -125,7 +125,7 @@ function detectIntent(text: string): IntentKey | null {
 function isFragment(text: string): boolean {
   const trimmed = text.trim();
   const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length <= 1 && !/\b(yes|no|ok|sure|bye)\b/i.test(trimmed)) return true;
+  if (words.length <= 1 && !/\b(yes|yeah|yep|no|nope|ok|okay|sure|bye|good|great|fine|well|hello|hi|hey|alright|thanks|interesting|really|exactly|right|true|agreed|definitely|absolutely|perfect|nice|cool|wow)\b/i.test(trimmed)) return true;
   // Looks like a mid-word cut-off (ends with — or trailing dash, or under 3 chars)
   if (/[-—]{1,2}\s*$/.test(trimmed) || trimmed.length < 3) return true;
   return false;
@@ -166,8 +166,8 @@ export async function scoreTranscript(transcript: string): Promise<CallScores> {
 
   const prompt = `Score this sales call on 5 dimensions (0-10 each). Return ONLY valid JSON, no other text.
 - interest: Did the prospect stay engaged?
-- usefulness: Did Marcus deliver real value beyond just pitching?
-- resourcefulness: Did Marcus handle unexpected questions well?
+- usefulness: Did Aria deliver real value beyond just pitching?
+- resourcefulness: Did Aria handle unexpected questions well?
 - emotional_resonance: Was the tone warm, confident, locally relevant?
 - success: Did the call end with a close, booking, or mockup YES?
 

@@ -314,4 +314,4 @@ function buildGather(say: string) {
 app.get("/health", (_, res) => res.json({ status: "ok", sessions: sessions.size, time: new Date().toISOString() }));
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Marcus AI Sales Bot running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Aria AI Sales Bot running on port ${PORT}`));
