@@ -1,0 +1,28 @@
+﻿{
+    "name":  "ai-sales-bot",
+    "version":  "1.0.0",
+    "main":  "dist/index.js",
+    "scripts":  {
+                    "dev":  "tsx watch src/index.ts",
+                    "start":  "ts-node src/index.ts",
+                    "build":  "tsc",
+                    "scrape":  "ts-node src/scraper.ts"
+                },
+    "dependencies":  {
+                         "@deepgram/sdk":  "^3.9.0",
+                         "@supabase/supabase-js":  "^2.45.0",
+                         "dotenv":  "^16.4.5",
+                         "express":  "^4.19.2",
+                         "groq-sdk":  "^0.7.0",
+                         "microsoft-cognitiveservices-speech-sdk":  "^1.41.0",
+                         "twilio":  "^5.3.4",
+                         "ws":  "^8.18.0"
+                     },
+    "devDependencies":  {
+                            "@types/express":  "^4.17.21",
+                            "@types/node":  "^22.0.0",
+                            "@types/ws":  "^8.5.12",
+                            "tsx":  "^4.19.0",
+                            "typescript":  "^5.5.4"
+                        }
+}
