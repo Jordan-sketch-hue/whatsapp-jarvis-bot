@@ -2,11 +2,11 @@ import "dotenv/config";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
-import { createClient as createDeepgramClient, LiveTranscriptionEvents } from "@deepgram/sdk";
-import { Conversation, type Lead } from "./conversation.js";
-import { synthesizeToBuffer } from "./tts.js";
-import { initiateCall, buildTwiml, buildVoicemailTwiml } from "./call.js";
-import { logCall, updateCall } from "./db.js";
+import { Conversation } from "./conversation";
+import { synthesizeSpeech } from "./tts";
+import { createAzureSTT } from "./stt";
+import { logCall } from "./db";
+import { initiateCall, buildTwiml, buildVoicemailTwiml } from "./call";
 
 const app = express();
 app.use(express.json());
@@ -15,178 +15,136 @@ app.use(express.urlencoded({ extended: false }));
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/stream" });
 
-// In-memory call sessions keyed by callSid
-const sessions = new Map<string, {
-  ws: WebSocket;
+interface Session {
   conv: Conversation;
-  streamSid?: string;
-  transcript: string[];
+  callSid: string;
+  ws: WebSocket;
+  streamSid: string;
+  stt: ReturnType<typeof createAzureSTT>;
+  speaking: boolean;
   startTime: number;
-}>();
+}
 
-// ── Admin: trigger outbound call ──────────────────────────────────────
-app.post("/call", async (req, res) => {
-  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY) {
-    return res.status(401).json({ error: "Unauthorized" });
+const sessions = new Map<string, Session>();
+
+/** Send TTS audio back to Twilio in 160-byte mulaw chunks */
+async function sendAudio(ws: WebSocket, streamSid: string, text: string) {
+  const audio = await synthesizeSpeech(text);
+  const chunkSize = 160;
+  for (let i = 0; i < audio.length; i += chunkSize) {
+    const chunk = audio.slice(i, i + chunkSize);
+    ws.send(JSON.stringify({
+      event: "media",
+      streamSid,
+      media: { payload: chunk.toString("base64") },
+    }));
+    await new Promise(r => setTimeout(r, 20));
   }
-  const { to, name, business } = req.body as { to: string; name?: string; business?: string };
-  if (!to) return res.status(400).json({ error: "to is required" });
+}
 
-  try {
-    const callSid = await initiateCall(to);
-    // Store lead info keyed by phone until WebSocket connects with callSid
-    leadBuffer.set(to, { phone: to, name, business });
-    await logCall({ call_sid: callSid, to_number: to, lead_name: name, lead_business: business, outcome: "no_answer", booked_followup: false });
-    res.json({ callSid, status: "initiated" });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Temp buffer: phone → lead info (until Twilio gives us callSid on WebSocket)
-const leadBuffer = new Map<string, Lead>();
-
-// ── TwiML webhook ─────────────────────────────────────────────────────
-app.post("/twiml", (_req, res) => {
-  res.type("text/xml").send(buildTwiml(process.env.PUBLIC_URL!));
-});
-
-// ── AMD (voicemail) callback ──────────────────────────────────────────
-app.post("/amd-status", async (req, res) => {
-  const { CallSid, AnsweredBy } = req.body;
-  if (AnsweredBy === "machine_end_beep" || AnsweredBy === "machine_end_silence") {
-    // Redirect call to play voicemail message
-    const twilio = (await import("twilio")).default;
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
-    await client.calls(CallSid).update({ twiml: buildVoicemailTwiml() });
-    await updateCall(CallSid, { outcome: "voicemail" });
-  }
-  res.sendStatus(200);
-});
-
-// ── Call status callback ──────────────────────────────────────────────
-app.post("/call-status", async (req, res) => {
-  const { CallSid, CallStatus, CallDuration } = req.body;
-  const session = sessions.get(CallSid);
-
-  const outcome =
-    CallStatus === "completed" ? "answered" :
-    CallStatus === "no-answer" ? "no_answer" :
-    CallStatus === "busy" ? "no_answer" : "error";
-
-  await updateCall(CallSid, {
-    outcome,
-    duration_seconds: CallDuration ? parseInt(CallDuration) : undefined,
-    transcript: session?.transcript.join("\n"),
-  });
-
-  sessions.delete(CallSid);
-  res.sendStatus(200);
-});
-
-// ── Health check ──────────────────────────────────────────────────────
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
-
-// ── WebSocket: Twilio Media Streams ──────────────────────────────────
 wss.on("connection", (ws) => {
-  let callSid: string | null = null;
-  let conv: Conversation | null = null;
-  let streamSid: string | null = null;
-  let isSpeaking = false;
-  const transcriptLines: string[] = [];
-
-  const deepgram = createDeepgramClient(process.env.DEEPGRAM_API_KEY!);
-  const dgLive = deepgram.listen.live({
-    model: "nova-2",
-    encoding: "mulaw",
-    sample_rate: 8000,
-    channels: 1,
-    smart_format: true,
-    interim_results: true,
-    utterance_end_ms: 1200,
-    vad_events: true,
-  });
-
-  let dgReady = false;
-  dgLive.on(LiveTranscriptionEvents.Open, () => { dgReady = true; });
-
-  dgLive.on(LiveTranscriptionEvents.Transcript, async (data) => {
-    const alt = data.channel?.alternatives?.[0];
-    if (!alt?.transcript || !data.is_final) return;
-
-    const text = alt.transcript.trim();
-    if (!text || !conv || !streamSid) return;
-
-    transcriptLines.push(`User: ${text}`);
-
-    // Barge-in: stop speaking if user interrupts
-    isSpeaking = false;
-
-    try {
-      const reply = await conv.respond(text);
-      if (!reply) return;
-      transcriptLines.push(`Marcus: ${reply}`);
-
-      const audio = await synthesizeToBuffer(reply);
-      sendAudio(ws, streamSid, audio);
-      isSpeaking = true;
-
-      if (conv.ended) {
-        setTimeout(() => ws.close(), 3000);
-      }
-    } catch (err) {
-      console.error("[pipeline] error:", err);
-    }
-  });
+  let session: Session | null = null;
 
   ws.on("message", async (raw) => {
     const msg = JSON.parse(raw.toString());
 
     if (msg.event === "start") {
-      callSid = msg.start.callSid;
-      streamSid = msg.start.streamSid;
+      const callSid = msg.start.callSid;
+      const streamSid = msg.start.streamSid;
+      const conv = new Conversation();
 
-      // Find lead info
-      const lead: Lead = { phone: callSid ?? "" };
-      conv = new Conversation(lead);
+      const stt = createAzureSTT(async (text, isFinal) => {
+        if (!isFinal || !session || session.speaking) return;
+        session.speaking = true;
+        try {
+          const { text: reply, ended } = await conv.respond(text);
+          await sendAudio(ws, streamSid, reply);
+          if (ended) {
+            await logCall({
+              callSid,
+              toNumber: "",
+              outcome: "answered",
+              transcript: conv.getTranscript(),
+              bookedFollowup: conv.isBooked(),
+              durationSeconds: Math.floor((Date.now() - session!.startTime) / 1000),
+            });
+            ws.close();
+          }
+        } finally {
+          session!.speaking = false;
+        }
+      });
 
-      sessions.set(callSid!, { ws, conv, streamSid: streamSid!, transcript: transcriptLines, startTime: Date.now() });
+      session = { conv, callSid, ws, streamSid, stt, speaking: false, startTime: Date.now() };
+      sessions.set(callSid, session);
 
       // Send opening greeting
       const greeting = conv.getGreeting();
-      transcriptLines.push(`Marcus: ${greeting}`);
-      const audio = await synthesizeToBuffer(greeting);
-      sendAudio(ws, streamSid!, audio);
+      await sendAudio(ws, streamSid, greeting);
     }
 
-    if (msg.event === "media" && dgReady) {
-      const chunk = Buffer.from(msg.media.payload, "base64");
-      dgLive.send(chunk);
+    if (msg.event === "media" && session) {
+      const audio = Buffer.from(msg.media.payload, "base64");
+      session.stt.pushAudio(audio);
     }
 
-    if (msg.event === "stop") {
-      dgLive.requestClose();
+    if (msg.event === "stop" && session) {
+      session.stt.stop();
+      sessions.delete(session.callSid);
     }
   });
 
   ws.on("close", () => {
-    dgLive.requestClose();
+    if (session) {
+      session.stt.stop();
+      sessions.delete(session.callSid);
+    }
   });
 });
 
-function sendAudio(ws: WebSocket, streamSid: string, audio: Buffer) {
-  if (ws.readyState !== WebSocket.OPEN) return;
-  // Twilio expects audio in 20ms chunks (160 bytes at 8kHz mulaw)
-  const CHUNK = 160;
-  for (let i = 0; i < audio.length; i += CHUNK) {
-    const slice = audio.slice(i, i + CHUNK);
-    ws.send(JSON.stringify({
-      event: "media",
-      streamSid,
-      media: { payload: slice.toString("base64") },
-    }));
-  }
-}
+// ── REST endpoints ──────────────────────────────────────
 
-const PORT = parseInt(process.env.PORT ?? "3000");
-server.listen(PORT, () => console.log(`[server] listening on :${PORT}`));
+/** Initiate outbound call — requires x-admin-key header */
+app.post("/call", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  const { to, leadName, business } = req.body;
+  if (!to) return res.status(400).json({ error: "to is required" });
+
+  try {
+    const call = await initiateCall(to, process.env.PUBLIC_URL!);
+    res.json({ callSid: call.sid, status: call.status });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** TwiML — Twilio calls this when the call connects */
+app.post("/twiml", (req, res) => {
+  res.type("text/xml").send(buildTwiml(process.env.PUBLIC_URL!));
+});
+
+/** AMD callback — handle voicemail detection */
+app.post("/amd-status", async (req, res) => {
+  const { CallSid, AnsweredBy } = req.body;
+  if (AnsweredBy === "machine_end_beep" || AnsweredBy === "machine_end_silence") {
+    await logCall({ callSid: CallSid, toNumber: "", outcome: "voicemail", transcript: "", bookedFollowup: false, durationSeconds: 0 });
+  }
+  res.type("text/xml").send(AnsweredBy?.startsWith("machine") ? buildVoicemailTwiml() : buildTwiml(process.env.PUBLIC_URL!));
+});
+
+/** Call status callback */
+app.post("/call-status", async (req, res) => {
+  const { CallSid, CallStatus, To, CallDuration } = req.body;
+  if (CallStatus === "no-answer" || CallStatus === "busy" || CallStatus === "failed") {
+    await logCall({ callSid: CallSid, toNumber: To, outcome: "no_answer", transcript: "", bookedFollowup: false, durationSeconds: parseInt(CallDuration || "0") });
+  }
+  res.sendStatus(200);
+});
+
+/** Health check */
+app.get("/health", (_, res) => res.json({ status: "ok", time: new Date().toISOString() }));
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`AI Sales Bot running on port ${PORT}`));
