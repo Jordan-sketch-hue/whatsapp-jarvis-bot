@@ -1,58 +1,63 @@
-/**
- * STT module — Azure Speech Services (real-time streaming)
- * Replaces Deepgram. Uses the same AZURE_SPEECH_KEY + AZURE_SPEECH_REGION.
- * Input: mulaw 8kHz PCM chunks from Twilio
- * Output: transcribed text via callback
- */
+﻿// Azure STT via WebSocket — no native SDK binaries needed
+import WebSocket from "ws";
 
-import * as sdk from "microsoft-cognitiveservices-speech-sdk";
+const STT_LANG = "en-US";
 
 export function createAzureSTT(onTranscript: (text: string, isFinal: boolean) => void) {
   const key = process.env.AZURE_SPEECH_KEY!;
   const region = process.env.AZURE_SPEECH_REGION!;
 
-  const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
-  speechConfig.speechRecognitionLanguage = "en-US";
-  speechConfig.setProperty(
-    sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "5000"
-  );
-  speechConfig.setProperty(
-    sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "1000"
-  );
+  const url = `wss://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${STT_LANG}&format=simple`;
 
-  // Use raw 8kHz PCM format (mulaw decoded)
-  const audioFormat = sdk.AudioStreamFormat.getWaveFormatPCM(8000, 16, 1);
-  const pushStream = sdk.AudioInputStream.createPushStream(audioFormat);
-  const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
+  const ws = new WebSocket(url, {
+    headers: { "Ocp-Apim-Subscription-Key": key },
+  });
 
-  const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+  let ready = false;
+  const queue: Buffer[] = [];
 
-  recognizer.recognizing = (_, e) => {
-    if (e.result.text) onTranscript(e.result.text, false);
-  };
+  ws.on("open", () => {
+    // Send speech config
+    ws.send(JSON.stringify({
+      context: { system: { version: "1.0" }, os: { platform: "Linux", name: "Node" }, device: { manufacturer: "JST" } },
+    }));
+    // Send audio config
+    const audioConfig = {
+      type: "start",
+      format: { encoding: "PCM", channels: 1, sampleRate: 8000, bitspersample: 16 },
+    };
+    ws.send(JSON.stringify(audioConfig));
+    ready = true;
+    queue.forEach((buf) => ws.send(buf));
+    queue.length = 0;
+  });
 
-  recognizer.recognized = (_, e) => {
-    if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-      onTranscript(e.result.text, true);
-    }
-  };
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.RecognitionStatus === "Success" && msg.DisplayText) {
+        onTranscript(msg.DisplayText, true);
+      } else if (msg.Text) {
+        onTranscript(msg.Text, false);
+      }
+    } catch {}
+  });
 
-  recognizer.startContinuousRecognitionAsync();
+  ws.on("error", (err) => console.error("[STT] WS error:", err.message));
 
   return {
-    /** Feed raw mulaw bytes — will be decoded to PCM before pushing */
     pushAudio: (mulawBuffer: Buffer) => {
       const pcm = mulawToPcm(mulawBuffer);
-      pushStream.write(pcm.buffer);
+      const buf = Buffer.from(pcm.buffer);
+      if (ready) ws.send(buf);
+      else queue.push(buf);
     },
     stop: () => {
-      recognizer.stopContinuousRecognitionAsync();
-      pushStream.close();
+      try { ws.send(JSON.stringify({ type: "end" })); ws.close(); } catch {}
     },
   };
 }
 
-/** Decode G.711 mulaw to 16-bit PCM — needed because Azure STT expects PCM */
 function mulawToPcm(mulaw: Buffer): Int16Array {
   const pcm = new Int16Array(mulaw.length);
   for (let i = 0; i < mulaw.length; i++) {
