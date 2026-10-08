@@ -1,9 +1,9 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import { Conversation } from "./conversation";
-import { synthesizeSpeech } from "./tts";
+import { synthesizeToBuffer } from "./tts";
 import { createAzureSTT } from "./stt";
 import { logCall } from "./db";
 import { initiateCall, buildTwiml, buildVoicemailTwiml } from "./call";
@@ -17,7 +17,7 @@ const wss = new WebSocketServer({ server, path: "/stream" });
 
 interface Session {
   conv: Conversation;
-  callSid: string;
+  call_sid: string;
   ws: WebSocket;
   streamSid: string;
   stt: ReturnType<typeof createAzureSTT>;
@@ -27,9 +27,8 @@ interface Session {
 
 const sessions = new Map<string, Session>();
 
-/** Send TTS audio back to Twilio in 160-byte mulaw chunks */
 async function sendAudio(ws: WebSocket, streamSid: string, text: string) {
-  const audio = await synthesizeSpeech(text);
+  const audio = await synthesizeToBuffer(text);
   const chunkSize = 160;
   for (let i = 0; i < audio.length; i += chunkSize) {
     const chunk = audio.slice(i, i + chunkSize);
@@ -43,13 +42,15 @@ async function sendAudio(ws: WebSocket, streamSid: string, text: string) {
 }
 
 wss.on("connection", (ws) => {
+  console.log("[WS] New connection from Twilio");
   let session: Session | null = null;
 
   ws.on("message", async (raw) => {
     const msg = JSON.parse(raw.toString());
 
     if (msg.event === "start") {
-      const callSid = msg.start.callSid;
+      console.log("[WS] start event received, callSid:", msg.start?.callSid);
+      const call_sid = msg.start.callSid;
       const streamSid = msg.start.streamSid;
       const conv = new Conversation();
 
@@ -61,12 +62,12 @@ wss.on("connection", (ws) => {
           await sendAudio(ws, streamSid, reply);
           if (ended) {
             await logCall({
-              callSid,
-              toNumber: "",
+              call_sid,
+              to_number: "",
               outcome: "answered",
               transcript: conv.getTranscript(),
-              bookedFollowup: conv.isBooked(),
-              durationSeconds: Math.floor((Date.now() - session!.startTime) / 1000),
+              booked_followup: conv.isBooked(),
+              duration_seconds: Math.floor((Date.now() - session!.startTime) / 1000),
             });
             ws.close();
           }
@@ -75,10 +76,9 @@ wss.on("connection", (ws) => {
         }
       });
 
-      session = { conv, callSid, ws, streamSid, stt, speaking: false, startTime: Date.now() };
-      sessions.set(callSid, session);
+      session = { conv, call_sid, ws, streamSid, stt, speaking: false, startTime: Date.now() };
+      sessions.set(call_sid, session);
 
-      // Send opening greeting
       const greeting = conv.getGreeting();
       await sendAudio(ws, streamSid, greeting);
     }
@@ -90,60 +90,55 @@ wss.on("connection", (ws) => {
 
     if (msg.event === "stop" && session) {
       session.stt.stop();
-      sessions.delete(session.callSid);
+      sessions.delete(session.call_sid);
     }
   });
 
+  ws.on("error", (err) => { console.error("[WS] error:", err.message); });
   ws.on("close", () => {
     if (session) {
       session.stt.stop();
-      sessions.delete(session.callSid);
+      sessions.delete(session.call_sid);
     }
   });
 });
 
-// ── REST endpoints ──────────────────────────────────────
-
-/** Initiate outbound call — requires x-admin-key header */
 app.post("/call", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY) {
     return res.status(401).json({ error: "unauthorized" });
   }
-  const { to, leadName, business } = req.body;
+  const { to } = req.body;
   if (!to) return res.status(400).json({ error: "to is required" });
 
   try {
-    const call = await initiateCall(to, process.env.PUBLIC_URL!);
-    res.json({ callSid: call.sid, status: call.status });
+    const call_sid = await initiateCall(to);
+    res.json({ call_sid, status: "queued" });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-/** TwiML — Twilio calls this when the call connects */
 app.post("/twiml", (req, res) => {
+  console.log("[TWIML] POST /twiml hit, CallSid:", req.body.CallSid);
   res.type("text/xml").send(buildTwiml(process.env.PUBLIC_URL!));
 });
 
-/** AMD callback — handle voicemail detection */
 app.post("/amd-status", async (req, res) => {
   const { CallSid, AnsweredBy } = req.body;
   if (AnsweredBy === "machine_end_beep" || AnsweredBy === "machine_end_silence") {
-    await logCall({ callSid: CallSid, toNumber: "", outcome: "voicemail", transcript: "", bookedFollowup: false, durationSeconds: 0 });
+    await logCall({ call_sid: CallSid, to_number: "", outcome: "voicemail", transcript: "", booked_followup: false, duration_seconds: 0 });
   }
   res.type("text/xml").send(AnsweredBy?.startsWith("machine") ? buildVoicemailTwiml() : buildTwiml(process.env.PUBLIC_URL!));
 });
 
-/** Call status callback */
 app.post("/call-status", async (req, res) => {
   const { CallSid, CallStatus, To, CallDuration } = req.body;
   if (CallStatus === "no-answer" || CallStatus === "busy" || CallStatus === "failed") {
-    await logCall({ callSid: CallSid, toNumber: To, outcome: "no_answer", transcript: "", bookedFollowup: false, durationSeconds: parseInt(CallDuration || "0") });
+    await logCall({ call_sid: CallSid, to_number: To, outcome: "no_answer", transcript: "", booked_followup: false, duration_seconds: parseInt(CallDuration || "0") });
   }
   res.sendStatus(200);
 });
 
-/** Health check */
 app.get("/health", (_, res) => res.json({ status: "ok", time: new Date().toISOString() }));
 
 const PORT = process.env.PORT || 3000;
