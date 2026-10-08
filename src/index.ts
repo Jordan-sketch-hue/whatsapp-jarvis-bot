@@ -103,7 +103,7 @@ app.post("/twiml", async (req, res) => {
 <Response>
   <Pause length="1"/>
   <Gather input="speech" action="${base}/intro" method="POST"
-          timeout="6" speechTimeout="1" speechModel="phone_call" language="en-US">
+          timeout="3" speechTimeout="1" speechModel="phone_call" language="en-US">
   </Gather>
   <Redirect method="POST">${base}/intro-silence</Redirect>
 </Response>`);
