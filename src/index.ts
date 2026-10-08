@@ -46,6 +46,7 @@ wss.on("connection", (ws) => {
   let session: Session | null = null;
 
   ws.on("message", async (raw) => {
+    console.log("[WS] raw event:", raw.toString().slice(0, 100));ws.on("message", async (raw) => {
     const msg = JSON.parse(raw.toString());
 
     if (msg.event === "start") {
