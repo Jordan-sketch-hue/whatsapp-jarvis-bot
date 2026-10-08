@@ -1,5 +1,5 @@
 ﻿// Azure TTS via REST API — no native SDK binaries needed, works on any Linux
-const VOICE = "en-US-AndrewMultilingualNeural";
+const VOICE = "en-US-AriaNeural";
 
 export async function synthesizeToBuffer(text: string): Promise<Buffer> {
   const key = process.env.AZURE_SPEECH_KEY!;

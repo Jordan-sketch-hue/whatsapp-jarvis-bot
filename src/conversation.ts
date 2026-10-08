@@ -90,6 +90,52 @@ const OBJECTION_QUALIFIERS: Record<NonNullable<ObjectionType>, string> = {
   no_need:   "I hear you — is it more that it's not a priority right now, or is the type of service not the right fit?",
 };
 
+// ─── Intent → stage map ───────────────────────────────────────────────────────
+type IntentKey = "pricing" | "booking" | "objection" | "pitch_request" | "end_call" | "mockup_request";
+
+const INTENT_STAGE_OVERRIDE: Record<IntentKey, Stage> = {
+  pricing:       "pitch",
+  booking:       "close",
+  objection:     "objection_classify",
+  pitch_request: "pitch",
+  end_call:      "end",
+  mockup_request:"mockup_offer",
+};
+
+// Stages where intent override does NOT fire (already past or irrelevant)
+const OVERRIDE_BLOCKED: Partial<Record<Stage, IntentKey[]>> = {
+  mockup_collect: ["mockup_request"],
+  schedule:       ["booking","pricing","pitch_request"],
+  follow_up:      ["booking","pricing","pitch_request"],
+  end:            ["pricing","booking","objection","pitch_request","mockup_request"],
+};
+
+function detectIntent(text: string): IntentKey | null {
+  const t = text.toLowerCase();
+  if (/\b(price|cost|how much|charge|fee|rate|afford|expensive|budget)\b/.test(t)) return "pricing";
+  if (/\b(sign me up|book|let.s do it|move forward|get started|i.m in|i.m interested|yes please|sounds good|let.s go)\b/.test(t)) return "booking";
+  if (/\b(can.t afford|too expensive|not right now|too busy|need to think|talk to my|not sure yet|maybe later)\b/.test(t)) return "objection";
+  if (/\b(what do you offer|tell me more|what services|what can you do|what.s included|what do you build)\b/.test(t)) return "pitch_request";
+  if (/\b(not interested|remove me|stop calling|take me off|don.t call|goodbye|bye now|no thank you|no thanks)\b/.test(t)) return "end_call";
+  if (/\b(mockup|design|sample|show me|see what it looks|see an example)\b/.test(t)) return "mockup_request";
+  return null;
+}
+
+// True if input is too short / garbled to act on meaningfully
+function isFragment(text: string): boolean {
+  const trimmed = text.trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= 1 && !/\b(yes|no|ok|sure|bye)\b/i.test(trimmed)) return true;
+  // Looks like a mid-word cut-off (ends with — or trailing dash, or under 3 chars)
+  if (/[-—]{1,2}\s*$/.test(trimmed) || trimmed.length < 3) return true;
+  return false;
+}
+
+// True if prospect is trying to interject ("wait", "hold on", etc.)
+function isInterruption(text: string): boolean {
+  return /^\s*(wait|hold on|hold up|one second|one sec|stop|excuse me|sorry|hang on|actually)\b/i.test(text.trim());
+}
+
 async function claudeChat(system: string, history: { role: string; content: string }[]): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
@@ -103,7 +149,7 @@ async function claudeChat(system: string, history: { role: string; content: stri
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
+      max_tokens: 400,
       system,
       messages: history,
     }),
@@ -153,6 +199,7 @@ Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N
 }
 
 export class Conversation {
+  silenceStreak: number = 0;
   private stage: Stage = "greeting";
   private history: { role: "user" | "assistant"; content: string }[] = [];
   private prospect: ProspectBrief;
@@ -166,10 +213,39 @@ export class Conversation {
 
   getGreeting(): string {
     const co = this.prospect.company_name ? ` — I was hoping to connect with someone from ${this.prospect.company_name}` : "";
-    return `Hi there, this is Marcus calling from J Supreme Tech${co}. How are you doing today?`;
+    return `Hi there, this is Aria calling from J Supreme Tech${co}. How are you doing today?`;
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
+    // ── Fix 1: Fragment / garbled input ──────────────────────────────────────
+    if (isFragment(userText)) {
+      return { text: "Sorry, I didn't quite catch that — could you say that again?", ended: false };
+    }
+
+    // ── Fix 2: Interruption ("wait", "hold on", etc.) ────────────────────────
+    if (isInterruption(userText)) {
+      // Don't advance stage — just open the floor
+      return { text: "Of course — go right ahead, I'm listening.", ended: false };
+    }
+
+    // ── Fix 3: Intent-based stage override ───────────────────────────────────
+    const intent = detectIntent(userText);
+    if (intent) {
+      const blocked = OVERRIDE_BLOCKED[this.stage] ?? [];
+      if (!blocked.includes(intent)) {
+        const targetStage = INTENT_STAGE_OVERRIDE[intent];
+        // Only jump forward, never back (except to objection/end from anywhere)
+        const alwaysOverride: IntentKey[] = ["end_call", "objection"];
+        const stages: Stage[] = ["greeting","qualify","mockup_offer","mockup_collect","pitch","objection_classify","objection_address","hesitation_close","close","schedule","follow_up","end"];
+        const currentIdx = stages.indexOf(this.stage);
+        const targetIdx  = stages.indexOf(targetStage);
+        if (alwaysOverride.includes(intent) || targetIdx > currentIdx) {
+          if (intent === "objection") this.objectionType = this.classifyObjection(userText.toLowerCase());
+          this.stage = targetStage;
+        }
+      }
+    }
+
     this.turnCount++;
     this.history.push({ role: "user", content: userText });
 
@@ -183,10 +259,16 @@ export class Conversation {
   }
 
   private buildSystem(): string {
-    const identity = `You are Marcus, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
+    const identity = `You are Aria, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
 You are warm, confident, knowledgeable, and persuasive. Professional Caribbean tone — not stiff, not slang.
-PHONE CALL RULES: Max 2 sentences per reply. Never list more than 2 options at once. Never sound scripted.
-Be resourceful — if asked anything outside your scope, give a useful answer then bridge back to JST services.`;
+PHONE CALL RULES — READ CAREFULLY:
+- Every reply must be a COMPLETE thought. Never end mid-sentence or mid-idea.
+- End every turn with either a question OR a statement that clearly signals you are done speaking (rising or resolved tone). The prospect must always know when it is their turn.
+- Keep it to 2-3 SHORT sentences max. Concise, not clipped.
+- Never list options with dashes or numbers on a phone call — weave them into natural speech.
+- Never sound scripted. Speak the way a sharp, warm Caribbean professional would.
+- Never trail off with "..." or leave a thought hanging — every reply lands with intention.
+- Be resourceful — if asked anything outside scope, give a useful answer and bridge back to JST services.`;
 
     const brief = this.buildProspectBrief();
     const stageInstruction = this.buildStageInstruction();
@@ -274,9 +356,11 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
 
     switch (this.stage) {
       case "greeting":
+        if (/wrong number|not looking|not interested|remove/i.test(u)) return "end";
         return "qualify";
 
       case "qualify":
+        if (this.isPositive(u)) { this.mockup.requested = true; return "mockup_collect"; }
         if (this.turnCount >= 3) return "mockup_offer";
         return "qualify";
 
@@ -312,11 +396,9 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
 
       case "close":
         if (this.isPositive(u)) return "schedule";
-        if (!this.mockup.requested) {
-          this.stage = "mockup_offer";
-          return "mockup_offer";
-        }
-        return "end";
+        if (!this.mockup.requested) return "mockup_offer";
+        if (this.isHesitation(u) || this.hasObjection(u)) return "hesitation_close";
+        return "follow_up";
 
       case "schedule":
         return "follow_up";
@@ -379,9 +461,12 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
 
   getMockupData(): MockupData { return this.mockup; }
   getStage(): Stage { return this.stage; }
-  isBooked(): boolean { return ["schedule","follow_up","end"].includes(this.stage); }
+  isBooked(): boolean { return ["schedule","follow_up"].includes(this.stage); }
 
   async scoreCall(): Promise<CallScores> {
     return scoreTranscript(this.getTranscript());
   }
 }
+
+
+

@@ -15,6 +15,52 @@ const sessions = new Map<string, Conversation>();
 // ─── Schema init ─────────────────────────────────────────────────────────────
 ensureSchema().then(() => console.log("[DB] Schema ready")).catch(e => console.error("[DB] Schema error:", e.message));
 
+// ─── Azure TTS endpoint ───────────────────────────────────────────────────────
+app.get("/tts", async (req, res) => {
+  const text = (req.query.text as string) || "";
+  if (!text) { res.status(400).send("text required"); return; }
+
+  const key  = process.env.AZURE_SPEECH_KEY;
+  const region = process.env.AZURE_SPEECH_REGION || "eastus";
+  if (!key) { res.status(500).send("Azure key not set"); return; }
+
+  const ssml = `<speak version='1.0' xml:lang='en-US'>
+  <voice name='en-US-AriaNeural'>
+    <prosody rate='-5%' pitch='0%'>${text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</prosody>
+  </voice>
+</speak>`;
+
+  try {
+    const ttsRes = await fetch(
+      `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`,
+      {
+        method: "POST",
+        headers: {
+          "Ocp-Apim-Subscription-Key": key,
+          "Content-Type": "application/ssml+xml",
+          "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+          "User-Agent": "aria-sales-bot",
+        },
+        body: ssml,
+      }
+    );
+
+    if (!ttsRes.ok) {
+      console.error("[TTS] Azure error:", ttsRes.status, await ttsRes.text());
+      res.status(502).send("TTS error");
+      return;
+    }
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-cache");
+    const buf = await ttsRes.arrayBuffer();
+    res.send(Buffer.from(buf));
+  } catch (e: any) {
+    console.error("[TTS] Fetch error:", e.message);
+    res.status(500).send("TTS error");
+  }
+});
+
 // ─── Outbound call trigger ────────────────────────────────────────────────────
 app.post("/call", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
@@ -23,13 +69,11 @@ app.post("/call", async (req, res) => {
   const { to, company_name, industry } = req.body;
   if (!to) return res.status(400).json({ error: "to is required" });
 
-  // DNC check before dialing
   const onDNC = await isDNC(to);
   if (onDNC) return res.status(403).json({ error: "number on DNC list" });
 
   try {
     const call_sid = await initiateCall(to);
-    // Store prospect context so /twiml can load it
     sessions.set(`pending_${to}`, new Conversation(
       await getProspect(to) ?? { company_name, industry }
     ));
@@ -40,21 +84,55 @@ app.post("/call", async (req, res) => {
   }
 });
 
-// ─── TwiML entry ─────────────────────────────────────────────────────────────
+// ─── TwiML entry — wait for prospect to speak first ──────────────────────────
 app.post("/twiml", async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   const to = req.body.To || "";
   console.log("[TWIML] CallSid:", callSid);
 
-  // Pick up pending prospect context if available
   const pending = sessions.get(`pending_${to}`);
   const conv = pending ?? new Conversation();
   sessions.delete(`pending_${to}`);
   sessions.set(callSid, conv);
 
+  const base = process.env.PUBLIC_URL;
+  // Pause 1s then silently listen — when the prospect says "hello" (or anything)
+  // we fire /intro which delivers the full greeting. If they say nothing in 6s,
+  // /intro-silence falls back to the greeting anyway so the call never stalls.
+  res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="1"/>
+  <Gather input="speech" action="${base}/intro" method="POST"
+          timeout="6" speechTimeout="1" speechModel="phone_call" language="en-US">
+  </Gather>
+  <Redirect method="POST">${base}/intro-silence</Redirect>
+</Response>`);
+});
+
+// ─── /intro — prospect said hello, now deliver the full greeting ──────────────
+app.post("/intro", async (req, res) => {
+  const callSid = req.body.CallSid || "unknown";
+  const to = req.body.To || "";
+  const heard = (req.body.SpeechResult || "").trim();
+  console.log("[INTRO] CallSid:", callSid, "| Heard:", heard || "(silent)");
+
+  let conv = sessions.get(callSid);
+  if (!conv) { conv = new Conversation(); sessions.set(callSid, conv); }
+
   const greeting = conv.getGreeting();
-  console.log("[TWIML] Greeting:", greeting.slice(0, 80));
+  console.log("[INTRO] Greeting:", greeting.slice(0, 80));
   res.type("text/xml").send(buildGather(greeting));
+});
+
+// ─── /intro-silence — no speech detected after connect, greet anyway ─────────
+app.post("/intro-silence", async (req, res) => {
+  const callSid = req.body.CallSid || "unknown";
+  console.log("[INTRO-SILENCE] No speech at connect, greeting anyway. CallSid:", callSid);
+
+  let conv = sessions.get(callSid);
+  if (!conv) { conv = new Conversation(); sessions.set(callSid, conv); }
+
+  res.type("text/xml").send(buildGather(conv.getGreeting()));
 });
 
 // ─── Handle speech input ─────────────────────────────────────────────────────
@@ -69,6 +147,7 @@ app.post("/gather", async (req, res) => {
     sessions.set(callSid, conv);
   }
 
+  conv.silenceStreak = 0;
   try {
     const { text: reply, ended } = await conv.respond(speechResult);
     console.log("[GATHER] Stage:", conv.getStage(), "| Reply:", reply.slice(0, 80), "| ended:", ended);
@@ -78,7 +157,7 @@ app.post("/gather", async (req, res) => {
       sessions.delete(callSid);
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Matthew-Neural">${escapeXml(reply)}</Say>
+  <Play>${process.env.PUBLIC_URL}/tts?text=${encodeURIComponent(reply)}</Play>
   <Hangup/>
 </Response>`);
     } else {
@@ -95,11 +174,26 @@ app.post("/gather", async (req, res) => {
 app.post("/no-input", async (req, res) => {
   const callSid = req.body.CallSid;
   const conv = sessions.get(callSid);
-  if (conv) await finalizeCall(callSid, req.body.To || "", conv, 0);
+  if (!conv) {
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
+    return;
+  }
+
+  conv.silenceStreak = (conv.silenceStreak ?? 0) + 1;
+
+  if (conv.silenceStreak < 3) {
+    const nudge = conv.silenceStreak === 1
+      ? "Sorry, I didn't catch that — could you say that again?"
+      : "Still there? Take your time, I'm listening.";
+    res.type("text/xml").send(buildGather(nudge));
+    return;
+  }
+
+  await finalizeCall(callSid, req.body.To || "", conv, 0);
   sessions.delete(callSid);
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Matthew-Neural">No problem — feel free to reach us at J Supreme Tech anytime. Have a great day!</Say>
+  <Play>${process.env.PUBLIC_URL}/tts?text=${encodeURIComponent("No problem — feel free to reach us at J Supreme Tech anytime. Have a great day!")}</Play>
   <Hangup/>
 </Response>`);
 });
@@ -139,7 +233,6 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
     const stage = conv.getStage();
     const booked = conv.isBooked();
 
-    // Score asynchronously — don't block
     const scores = await conv.scoreCall().catch(() => undefined);
 
     const nextAction = mockup.requested
@@ -164,9 +257,7 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
       next_action: nextAction,
     });
 
-    // Notify Jordan via WhatsApp
     await notifyJordan({ callSid, toNumber, stage, booked, scores, mockup, nextAction, transcript });
-
     console.log("[FINAL] Logged & notified. Stage:", stage, "| Mockup:", mockup.requested, "| Scores:", scores);
   } catch (e: any) {
     console.error("[FINAL] Error:", e.message);
@@ -174,14 +265,8 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
 }
 
 async function notifyJordan(data: {
-  callSid: string;
-  toNumber: string;
-  stage: string;
-  booked: boolean;
-  scores?: any;
-  mockup: any;
-  nextAction: string;
-  transcript: string;
+  callSid: string; toNumber: string; stage: string; booked: boolean;
+  scores?: any; mockup: any; nextAction: string; transcript: string;
 }) {
   const webhookUrl = process.env.WHATSAPP_NOTIFY_URL;
   if (!webhookUrl) return;
@@ -191,7 +276,7 @@ async function notifyJordan(data: {
     : "Scores: pending";
 
   const message = [
-    `*Marcus Call Ended*`,
+    `*Aria Call Ended*`,
     `Number: ${data.toNumber}`,
     `Stage reached: ${data.stage}`,
     `Booked: ${data.booked ? "YES" : "NO"}`,
@@ -219,20 +304,11 @@ function buildGather(say: string) {
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="8">
-    <Say voice="Polly.Matthew-Neural">${escapeXml(say)}</Say>
+          language="en-US" timeout="10">
+    <Play>${base}/tts?text=${encodeURIComponent(say)}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
-}
-
-function escapeXml(text: string) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }
 
 app.get("/health", (_, res) => res.json({ status: "ok", sessions: sessions.size, time: new Date().toISOString() }));
