@@ -1,4 +1,4 @@
-import twilio from "twilio";
+﻿import twilio from "twilio";
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID!,
@@ -8,7 +8,7 @@ const client = twilio(
 export async function initiateCall(to: string): Promise<string> {
   const call = await client.calls.create({
     to,
-    from: process.env.TWILIO_PHONE_NUMBER!,
+    from: process.env.TWILIO_FROM_NUMBER!,
     url: `${process.env.PUBLIC_URL}/twiml`,
     statusCallback: `${process.env.PUBLIC_URL}/call-status`,
     statusCallbackMethod: "POST",
