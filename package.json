@@ -9,6 +9,7 @@
         "scrape": "node dist/scraper.js"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.132.1",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
         "groq-sdk": "^0.7.0",

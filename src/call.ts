@@ -1,34 +1,26 @@
-﻿import twilio from "twilio";
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID!,
-  process.env.TWILIO_AUTH_TOKEN!
-);
+﻿import "dotenv/config";
 
 export async function initiateCall(to: string): Promise<string> {
-  const call = await client.calls.create({
-    to,
-    from: process.env.TWILIO_FROM_NUMBER!,
-    url: `${process.env.PUBLIC_URL}/twiml`,
-  });
-  return call.sid;
-}
+  const sid = process.env.TWILIO_ACCOUNT_SID!;
+  const token = process.env.TWILIO_AUTH_TOKEN!;
+  const from = process.env.TWILIO_FROM_NUMBER!;
+  const url = `${process.env.PUBLIC_URL}/twiml`;
 
-export function buildTwiml(publicUrl: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Connect>
-    <Stream url="wss://${new URL(publicUrl).host}/stream" />
-  </Connect>
-</Response>`;
-}
+  const body = new URLSearchParams({ To: to, From: from, Url: url }).toString();
 
-export function buildVoicemailTwiml(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Matthew">
-    Hi, this is Marcus from J Supreme Tech. We help Jamaican businesses with websites, social media, and digital marketing.
-    Give us a call back at 876-314-9024 or WhatsApp us. Have a great day!
-  </Say>
-</Response>`;
+  const res = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    }
+  );
+
+  const data = await res.json() as any;
+  if (!res.ok) throw new Error(data?.message ?? JSON.stringify(data));
+  return data.sid;
 }
