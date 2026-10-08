@@ -10,9 +10,6 @@ export async function initiateCall(to: string): Promise<string> {
     to,
     from: process.env.TWILIO_FROM_NUMBER!,
     url: `${process.env.PUBLIC_URL}/twiml`,
-    statusCallback: `${process.env.PUBLIC_URL}/call-status`,
-    statusCallbackMethod: "POST",
-    statusCallbackEvent: ["completed", "no-answer", "busy", "failed"],
   });
   return call.sid;
 }
