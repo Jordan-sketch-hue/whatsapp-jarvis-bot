@@ -16,8 +16,13 @@ FROM sales_leads WHERE status = 'new' ORDER BY created_at ASC;
 # View by tier (stored in notes field as "TIER:1" etc.)
 SELECT * FROM sales_leads WHERE notes LIKE '%TIER:1%' AND status = 'new';
 
-# Run the scraper to fill real phone numbers per category
-node dist/scraper.js --query "nail salon" --location "Kingston Jamaica" --limit 50
+# Run scraper — FREE, no API key (uses OpenStreetMap Overpass API)
+# Single category:
+node dist/scraper.js --query "nail_salon" --location "Kingston" --limit 50
+node dist/scraper.js --query "restaurant" --location "Montego Bay" --limit 50
+
+# Run ALL categories at once (reads leads/scraper-targets.json):
+node dist/scraper.js --run-all
 ```
 
 ---
