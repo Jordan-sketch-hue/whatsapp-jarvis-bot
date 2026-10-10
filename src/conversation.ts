@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 
 export type Stage =
   | "greeting"
@@ -110,6 +110,19 @@ const OVERRIDE_BLOCKED: Partial<Record<Stage, IntentKey[]>> = {
   end:            ["pricing","booking","objection","pitch_request","mockup_request"],
 };
 
+// Max turns to stay in each stage before forcing advance
+const STAGE_MAX_TURNS: Partial<Record<Stage, number>> = {
+  greeting:           2,
+  qualify:            5,
+  mockup_offer:       2,
+  mockup_collect:     6,
+  pitch:              5,
+  objection_classify: 2,
+  objection_address:  3,
+  hesitation_close:   3,
+  close:              4,
+};
+
 function detectIntent(text: string): IntentKey | null {
   const t = text.toLowerCase();
   if (/\b(price|cost|how much|charge|fee|rate|afford|expensive|budget)\b/.test(t)) return "pricing";
@@ -126,38 +139,59 @@ function isFragment(text: string): boolean {
   const trimmed = text.trim();
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length <= 1 && !/\b(yes|yeah|yep|no|nope|ok|okay|sure|bye|good|great|fine|well|hello|hi|hey|alright|thanks|interesting|really|exactly|right|true|agreed|definitely|absolutely|perfect|nice|cool|wow)\b/i.test(trimmed)) return true;
-  // Looks like a mid-word cut-off (ends with — or trailing dash, or under 3 chars)
   if (/[-—]{1,2}\s*$/.test(trimmed) || trimmed.length < 3) return true;
   return false;
 }
 
-// True if prospect is trying to interject ("wait", "hold on", etc.)
+// True if prospect is trying to interject
 function isInterruption(text: string): boolean {
   return /^\s*(wait|hold on|hold up|one second|one sec|stop|excuse me|sorry|hang on|actually)\b/i.test(text.trim());
 }
 
-async function claudeChat(system: string, history: { role: string; content: string }[]): Promise<string> {
+// DNC-level end phrases — prospect wants to be removed
+function isDncPhrase(text: string): boolean {
+  return /\b(remove me|stop calling|take me off|don.t call|do not call|never call)\b/i.test(text);
+}
+
+async function claudeChat(
+  system: string,
+  history: { role: string; content: string }[]
+): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 400,
-      system,
-      messages: history,
-    }),
-  });
+  // Keep last 10 messages to prevent token budget blowout on long calls
+  const trimmed = history.length > 10 ? history.slice(-10) : history;
 
-  const data = await res.json() as any;
-  if (!res.ok) throw new Error(`Claude ${res.status}: ${JSON.stringify(data)}`);
-  return data.content?.[0]?.text?.trim() ?? "Could you repeat that?";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 400,
+        system,
+        messages: trimmed,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await res.json() as any;
+    if (!res.ok) throw new Error(`Claude ${res.status}: ${JSON.stringify(data)}`);
+    return data.content?.[0]?.text?.trim() ?? "Could you repeat that?";
+  } catch (e: any) {
+    if (e.name === "AbortError") throw new Error("LLM_TIMEOUT");
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function scoreTranscript(transcript: string): Promise<CallScores> {
@@ -177,6 +211,8 @@ ${transcript}
 Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N,"success":N}`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -190,10 +226,11 @@ Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N
         system: "You score sales call transcripts. Return only valid JSON.",
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const data = await res.json() as any;
     const raw = data.content?.[0]?.text?.trim() ?? "";
-    // Strip any markdown code fences the model might wrap JSON in
     const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
     return JSON.parse(jsonStr) as CallScores;
   } catch (e: any) {
@@ -210,14 +247,24 @@ export class Conversation {
   private mockup: MockupData = { requested: false, questions_asked: 0 };
   private objectionType: ObjectionType = null;
   private turnCount = 0;
+  private stageTurnCount = 0;      // turns spent in current stage
+  private dncRequested = false;    // set true when prospect says "stop calling" etc.
 
   constructor(prospect?: ProspectBrief) {
     this.prospect = prospect ?? {};
   }
 
   getGreeting(): string {
-    const co = this.prospect.company_name ? ` — I was hoping to connect with someone from ${this.prospect.company_name}` : "";
-    return `Hi there, this is Aria calling from J Supreme Tech${co}. How are you doing today?`;
+    const p = this.prospect;
+
+    // Warm lead — we already know who they are and what they need
+    if (p.company_name && p.industry) {
+      const product = p.recommended_service ?? "a digital solution";
+      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? … Perfect. This is Aria calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
+    }
+
+    // Cold call — no intel
+    return `Hi there, this is Aria calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
@@ -244,6 +291,7 @@ export class Conversation {
         if (alwaysOverride.includes(intent) || targetIdx > currentIdx) {
           if (intent === "objection") this.objectionType = this.classifyObjection(userText.toLowerCase());
           this.stage = targetStage;
+          this.stageTurnCount = 0;
         }
       }
     }
@@ -251,18 +299,32 @@ export class Conversation {
     // ── End-phrase short-circuit (before burning an LLM call) ────────────────
     if (this.isEndPhrase(userText)) {
       this.stage = "end";
+      if (isDncPhrase(userText)) this.dncRequested = true;
       return { text: "Understood — no problem at all. Have a wonderful day!", ended: true };
     }
 
     this.turnCount++;
+    this.stageTurnCount++;
     this.history.push({ role: "user", content: userText });
 
     const system = this.buildSystem();
-    const reply = await claudeChat(system, this.history);
+    let reply: string;
+    try {
+      reply = await claudeChat(system, this.history);
+    } catch (e: any) {
+      // LLM timeout or error — give a graceful bridge response
+      if (e.message === "LLM_TIMEOUT") {
+        console.error("[LLM] Timeout on turn", this.turnCount);
+        reply = "Give me just one moment — could you say that again so I catch it properly?";
+      } else {
+        throw e;
+      }
+    }
     this.history.push({ role: "assistant", content: reply });
 
     const newStage = this.nextStage(userText, reply);
     const ended = newStage === "end" || this.isEndPhrase(reply);
+    if (newStage !== this.stage) this.stageTurnCount = 0;
     this.stage = newStage;
     return { text: reply, ended };
   }
@@ -277,7 +339,8 @@ PHONE CALL RULES — READ CAREFULLY:
 - Never list options with dashes or numbers on a phone call — weave them into natural speech.
 - Never sound scripted. Speak the way a sharp, warm Caribbean professional would.
 - Never trail off with "..." or leave a thought hanging — every reply lands with intention.
-- Be resourceful — if asked anything outside scope, give a useful answer and bridge back to JST services.`;
+- Be resourceful — if asked anything outside scope, give a useful answer and bridge back to JST services.
+- If a prospect mentions Wix, Shopify, or another platform: acknowledge it, then highlight what JST does differently (custom-built for Caribbean payments, local support, no template limitations).`;
 
     const brief = this.buildProspectBrief();
     const stageInstruction = this.buildStageInstruction();
@@ -303,12 +366,48 @@ Notes: ${p.notes ?? ""}`;
       case "greeting":
         return "Greet warmly. Ask what type of business they run. One question only.";
 
-      case "qualify":
+      case "qualify": {
+        const p = this.prospect;
+
+        // WARM LEAD — we already have their data, skip questioning, go straight to offer
+        if (p.company_name && p.industry) {
+          const svc = p.recommended_service ?? "";
+          const isSaas = /GlowDesk|PunchPro|FleetRun|TourBase|EnrollIQ|TableFlow|DwellDesk/i.test(svc);
+          const isMarketing = /social|marketing|seo/i.test(svc);
+
+          if (isSaas) {
+            return `You already know they are a ${p.industry} business without a digital system. Do NOT re-ask what type of business they are. Go straight to: "We built ${svc} specifically for businesses like yours — free 3-day trial, no card required. Want me to send you the link right now?"`;
+          }
+          if (isMarketing) {
+            return `You already know they need marketing help. Do NOT ask qualifying questions. Go straight to: "I can put together a FREE 30-day social media strategy plan for ${p.company_name} — what is working for ${p.industry} businesses in Jamaica right now. Can I send that to your WhatsApp?"`;
+          }
+          // Default warm lead = website/custom
+          return `You already know ${p.company_name} (${p.industry}) does not have a website. Do NOT ask if they have one. Go straight to: "I can send you a FREE visual preview of what ${p.company_name}'s website could look like — straight to your WhatsApp within 24 hours, completely free. Would that be helpful?"`;
+        }
+
+        // COLD CALL — qualify first, then offer
         return `Find their pain point in 1-2 exchanges. Ask about their website, booking system, how customers find them.
-After getting context, offer the free mockup early: "Before I go further — can I send you a FREE design mockup via WhatsApp so you can see what we could build for you? Completely free, no obligation."`;
+
+After getting context, make the FREE offer that matches their situation:
+
+PATH A — No website / needs custom build / app:
+"Before I go further — can I send you a FREE visual preview of what your website could look like? Straight to your WhatsApp within 24 hours, no obligation."
+
+PATH B — Salon / cafe / restaurant / courier / school / tour op / landlord:
+"We built software specifically for [their type] — free 3-day trial, no card required. Want to test it this week?"
+
+PATH C — Mentions marketing / social media / getting more customers:
+"I can put together a FREE 30-day social media strategy plan for your business — what is working in Jamaica right now. Can I send that over to your WhatsApp?"
+
+Pick ONE path. Ask only ONE offer question.`;
+      }
 
       case "mockup_offer":
-        return `You just offered the free mockup. Wait for their response. If YES: great, ask for WhatsApp number. If NO: move on to pitching their matched service.`;
+        return `You just offered the free hook (mockup / SaaS trial / strategy plan). Wait for their response.
+If YES to mockup: great, ask for their WhatsApp number.
+If YES to SaaS trial: send them to jsupremetech.online/products and confirm their WhatsApp for follow-up.
+If YES to strategy plan: ask for their WhatsApp number to send the plan.
+If NO to everything: move on to pitching their matched service directly.`;
 
       case "mockup_collect": {
         if (!this.mockup.wa_number) return "Ask for their WhatsApp number to send the mockup to.";
@@ -338,7 +437,11 @@ After getting context, offer the free mockup early: "Before I go further — can
 
       case "close":
         return `Ask for the commitment: "Shall I send you a proposal today?" or "Want to start your free 3-day trial now?"
-If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you can see what it could look like? No cost, no obligation."`;
+If they hesitate, use the best-fit free offer as a fallback:
+- Website prospect: "At minimum, can I send you a FREE visual preview via WhatsApp so you can see what it could look like? No cost, no obligation."
+- SaaS prospect: "At minimum, want me to send you the free trial link? Three days, no card, cancel anytime."
+- Marketing prospect: "At minimum, can I send you a FREE 30-day strategy plan for your social media? Takes two minutes to set up and you keep it regardless."
+Always end with one of these — never leave the call without a YES to something.`;
 
       case "schedule":
         return `They said yes. Confirm next step:
@@ -363,17 +466,34 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
     if (this.isEndPhrase(reply)) return "end";
     if (this.turnCount > 22) return "end";
 
+    // Stage stuck guard — force advance if we've been in this stage too long
+    const maxTurns = STAGE_MAX_TURNS[this.stage];
+    if (maxTurns && this.stageTurnCount >= maxTurns) {
+      const forceMap: Partial<Record<Stage, Stage>> = {
+        greeting:           "qualify",
+        qualify:            "mockup_offer",
+        mockup_offer:       "pitch",
+        pitch:              "close",
+        objection_classify: "objection_address",
+        objection_address:  "close",
+        hesitation_close:   "close",
+        close:              "follow_up",
+      };
+      const forced = forceMap[this.stage];
+      if (forced) return forced;
+    }
+
     switch (this.stage) {
       case "greeting":
         if (/wrong number|not looking|not interested|remove/i.test(u)) return "end";
+        // Warm lead: skip qualify loop, go straight to offer
+        if (this.prospect.company_name && this.prospect.industry) return "mockup_offer";
         return "qualify";
 
       case "qualify":
-        // Only treat as mockup-YES if Aria already offered it (turnCount >= 2) AND prospect agreed
         if (this.turnCount >= 2 && this.isMockupYes(u)) { this.mockup.requested = true; return "mockup_collect"; }
         if (this.turnCount >= 3) return "mockup_offer";
         return "qualify";
-
 
       case "mockup_offer":
         if (this.isMockupYes(u)) {
@@ -424,7 +544,6 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
 
   private handleMockupCollect(userText: string): Stage {
     if (!this.mockup.wa_number) {
-      // Match a phone-number-shaped token: optional +, digits, spaces/dashes/parens, at least 7 digits total
       const numMatch = userText.match(/\+?[\d][\d\s\-\(\)]{6,}\d/);
       if (numMatch) this.mockup.wa_number = numMatch[0].replace(/[\s\-\(\)]/g, "");
       return "mockup_collect";
@@ -455,7 +574,6 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
     return /\b(yes|yeah|yep|sure|ok|okay|alright|sounds good|let.s do|go ahead|send it|perfect|great|absolutely)\b/.test(t);
   }
 
-  // Tighter check specifically for "yes to the mockup offer" — avoids false positive on general positive words
   private isMockupYes(t: string): boolean {
     return /\b(yes|yeah|yep|sure|ok|okay|alright|send it|go ahead|sounds good|absolutely|please|why not)\b/.test(t)
       && !/\b(already have|have one|don.t need|not interested|no thanks|no thank|nope)\b/.test(t);
@@ -480,11 +598,9 @@ If they hesitate: "At minimum, can I send you a FREE mockup via WhatsApp so you 
   getMockupData(): MockupData { return this.mockup; }
   getStage(): Stage { return this.stage; }
   isBooked(): boolean { return ["schedule","follow_up"].includes(this.stage); }
+  isDncRequested(): boolean { return this.dncRequested; }
 
   async scoreCall(): Promise<CallScores> {
     return scoreTranscript(this.getTranscript());
   }
 }
-
-
-

@@ -1,4 +1,4 @@
-﻿import { Pool } from "pg";
+import { Pool } from "pg";
 import type { CallScores } from "./conversation";
 
 if (!process.env.DATABASE_URL) {
@@ -60,7 +60,23 @@ export async function ensureSchema() {
       recommended_service TEXT,
       notes TEXT,
       dnc BOOLEAN DEFAULT FALSE,
+      attempt_count INTEGER DEFAULT 0,
       last_called_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS sales_leads (
+      id SERIAL PRIMARY KEY,
+      place_id TEXT UNIQUE NOT NULL,
+      business_name TEXT,
+      phone TEXT,
+      address TEXT,
+      category TEXT,
+      recommended_product TEXT,
+      has_website BOOLEAN DEFAULT FALSE,
+      google_rating NUMERIC,
+      status TEXT DEFAULT 'new',
+      called_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
@@ -109,6 +125,19 @@ export async function isDNC(phone: string): Promise<boolean> {
   }
 }
 
+export async function markDNC(phone: string): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO prospects (phone, dnc) VALUES ($1, TRUE)
+       ON CONFLICT (phone) DO UPDATE SET dnc = TRUE`,
+      [phone]
+    );
+    console.log("[DB] Marked DNC:", phone);
+  } catch (e: any) {
+    console.error("[DB] markDNC error:", e.message);
+  }
+}
+
 export async function getProspect(phone: string) {
   try {
     const res = await pool.query("SELECT * FROM prospects WHERE phone = $1 AND dnc = FALSE LIMIT 1", [phone]);
@@ -120,6 +149,68 @@ export async function getProspect(phone: string) {
 
 export async function markCalled(phone: string) {
   try {
-    await pool.query("UPDATE prospects SET last_called_at = NOW() WHERE phone = $1", [phone]);
+    await pool.query(
+      `INSERT INTO prospects (phone, last_called_at, attempt_count) VALUES ($1, NOW(), 1)
+       ON CONFLICT (phone) DO UPDATE SET last_called_at = NOW(), attempt_count = prospects.attempt_count + 1`,
+      [phone]
+    );
   } catch { /* non-fatal */ }
+}
+
+export async function getAttemptCount(phone: string): Promise<number> {
+  try {
+    const res = await pool.query("SELECT attempt_count FROM prospects WHERE phone = $1", [phone]);
+    return res.rows[0]?.attempt_count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export interface SalesLead {
+  id: number;
+  phone: string;
+  business_name: string;
+  category: string;
+  recommended_product: string;
+}
+
+export async function getNewLeads(limit = 20): Promise<SalesLead[]> {
+  try {
+    const res = await pool.query(
+      `SELECT sl.id, sl.phone, sl.business_name, sl.category, sl.recommended_product
+       FROM sales_leads sl
+       LEFT JOIN prospects p ON p.phone = sl.phone
+       WHERE sl.status = 'new'
+         AND sl.phone IS NOT NULL
+         AND sl.phone <> ''
+         AND (p.phone IS NULL OR (p.dnc = FALSE AND COALESCE(p.attempt_count, 0) < 3))
+       ORDER BY sl.created_at ASC
+       LIMIT $1`,
+      [limit]
+    );
+    return res.rows;
+  } catch (e: any) {
+    console.error("[DB] getNewLeads error:", e.message);
+    return [];
+  }
+}
+
+export async function markLeadCalled(id: number) {
+  try {
+    await pool.query("UPDATE sales_leads SET status='called', called_at=NOW() WHERE id=$1", [id]);
+  } catch { /* non-fatal */ }
+}
+
+// Returns true if phone was called within the last `hours` hours
+export async function hasBeenCalledRecently(phone: string, hours = 24): Promise<boolean> {
+  try {
+    const res = await pool.query(
+      `SELECT last_called_at FROM prospects WHERE phone = $1
+       AND last_called_at > NOW() - INTERVAL '${hours} hours'`,
+      [phone]
+    );
+    return res.rows.length > 0;
+  } catch {
+    return false;
+  }
 }
