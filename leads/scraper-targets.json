@@ -1,0 +1,280 @@
+[
+  {
+    "tier": 1,
+    "category": "nail_salon",
+    "recommended_product": "Website + Online Booking (J$25K)",
+    "queries": [
+      { "q": "nail salon", "location": "Kingston Jamaica" },
+      { "q": "nail salon", "location": "Montego Bay Jamaica" },
+      { "q": "nail salon", "location": "Spanish Town Jamaica" },
+      { "q": "nail salon", "location": "Portmore Jamaica" },
+      { "q": "nail salon", "location": "Ocho Rios Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 20,
+    "bot_script": "nail_salon"
+  },
+  {
+    "tier": 1,
+    "category": "hair_salon",
+    "recommended_product": "Website + Gallery + Booking (J$25K)",
+    "queries": [
+      { "q": "hair salon", "location": "Kingston Jamaica" },
+      { "q": "hair salon", "location": "Montego Bay Jamaica" },
+      { "q": "beauty salon", "location": "Kingston Jamaica" },
+      { "q": "hair salon", "location": "Portmore Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 20,
+    "bot_script": "hair_salon"
+  },
+  {
+    "tier": 1,
+    "category": "barbershop",
+    "recommended_product": "Website + Booking (J$20K)",
+    "queries": [
+      { "q": "barbershop", "location": "Kingston Jamaica" },
+      { "q": "barber", "location": "Montego Bay Jamaica" },
+      { "q": "barbershop", "location": "Spanish Town Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 20,
+    "bot_script": "barbershop"
+  },
+  {
+    "tier": 1,
+    "category": "auto_repair",
+    "recommended_product": "Website + Booking + Google Listing (J$25K)",
+    "queries": [
+      { "q": "auto repair garage", "location": "Kingston Jamaica" },
+      { "q": "car mechanic", "location": "Kingston Jamaica" },
+      { "q": "auto garage", "location": "Montego Bay Jamaica" },
+      { "q": "mechanic", "location": "Spanish Town Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 20,
+    "bot_script": "mechanic"
+  },
+  {
+    "tier": 1,
+    "category": "car_detailing",
+    "recommended_product": "Website + Gallery + Booking (J$20K)",
+    "queries": [
+      { "q": "car detailing", "location": "Kingston Jamaica" },
+      { "q": "car wash detailing", "location": "Montego Bay Jamaica" },
+      { "q": "auto detailing", "location": "Portmore Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "car_detailing"
+  },
+  {
+    "tier": 1,
+    "category": "restaurant",
+    "recommended_product": "Website + Online Menu + Order Link (J$30K)",
+    "queries": [
+      { "q": "restaurant", "location": "Kingston Jamaica" },
+      { "q": "restaurant", "location": "Montego Bay Jamaica" },
+      { "q": "local restaurant", "location": "Ocho Rios Jamaica" },
+      { "q": "eatery", "location": "Kingston Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 20,
+    "bot_script": "restaurant"
+  },
+  {
+    "tier": 1,
+    "category": "bakery",
+    "recommended_product": "Website + Pre-Order System (J$20K)",
+    "queries": [
+      { "q": "bakery", "location": "Kingston Jamaica" },
+      { "q": "bakery", "location": "Montego Bay Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "bakery"
+  },
+  {
+    "tier": 1,
+    "category": "catering",
+    "recommended_product": "Website + Quote Form + Portfolio (J$35K)",
+    "queries": [
+      { "q": "catering company", "location": "Kingston Jamaica" },
+      { "q": "catering", "location": "Montego Bay Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "catering"
+  },
+  {
+    "tier": 1,
+    "category": "clothing_boutique",
+    "recommended_product": "E-commerce Website (J$35K)",
+    "queries": [
+      { "q": "clothing boutique", "location": "Kingston Jamaica" },
+      { "q": "fashion store", "location": "Montego Bay Jamaica" },
+      { "q": "clothing store", "location": "Kingston Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 20,
+    "bot_script": "clothing_boutique"
+  },
+  {
+    "tier": 1,
+    "category": "electrician",
+    "recommended_product": "Website + Lead Capture + Reviews (J$20K)",
+    "queries": [
+      { "q": "electrician", "location": "Kingston Jamaica" },
+      { "q": "electrical contractor", "location": "Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "trades"
+  },
+  {
+    "tier": 1,
+    "category": "plumber",
+    "recommended_product": "Website + Emergency Call Form (J$20K)",
+    "queries": [
+      { "q": "plumber", "location": "Kingston Jamaica" },
+      { "q": "plumbing services", "location": "Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "trades"
+  },
+  {
+    "tier": 2,
+    "category": "real_estate_agent",
+    "recommended_product": "Property Site + CRM + AI Follow-up Caller (J$50K)",
+    "queries": [
+      { "q": "real estate agent", "location": "Kingston Jamaica" },
+      { "q": "real estate broker", "location": "Jamaica" },
+      { "q": "property sales", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 20,
+    "bot_script": "real_estate"
+  },
+  {
+    "tier": 2,
+    "category": "insurance_agent",
+    "recommended_product": "Website + AI Sales Caller (J$45K + monthly)",
+    "queries": [
+      { "q": "insurance agent", "location": "Kingston Jamaica" },
+      { "q": "insurance broker", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 15,
+    "bot_script": "insurance_sales"
+  },
+  {
+    "tier": 2,
+    "category": "accountant",
+    "recommended_product": "Client Portal + Website (J$40K)",
+    "queries": [
+      { "q": "accountant", "location": "Kingston Jamaica" },
+      { "q": "accounting firm", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 15,
+    "bot_script": "professional_services"
+  },
+  {
+    "tier": 2,
+    "category": "dentist",
+    "recommended_product": "Website + Patient Booking System (J$50K–J$80K)",
+    "queries": [
+      { "q": "dentist", "location": "Kingston Jamaica" },
+      { "q": "dental clinic", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 15,
+    "bot_script": "healthcare"
+  },
+  {
+    "tier": 2,
+    "category": "tour_operator",
+    "recommended_product": "Booking Site + Direct Reservations (J$50K)",
+    "queries": [
+      { "q": "tour operator", "location": "Montego Bay Jamaica" },
+      { "q": "tours activities", "location": "Ocho Rios Jamaica" },
+      { "q": "tour company", "location": "Negril Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 20,
+    "bot_script": "tour_operator"
+  },
+  {
+    "tier": 2,
+    "category": "transfer_company",
+    "recommended_product": "Airport Transfer Booking Site (J$40K)",
+    "queries": [
+      { "q": "airport transfer", "location": "Montego Bay Jamaica" },
+      { "q": "transfer service", "location": "Kingston Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "transfer"
+  },
+  {
+    "tier": 2,
+    "category": "gym_fitness",
+    "recommended_product": "Website + Class Schedule + Member Portal (J$40K)",
+    "queries": [
+      { "q": "gym", "location": "Kingston Jamaica" },
+      { "q": "fitness studio", "location": "Jamaica" }
+    ],
+    "filter_no_website": true,
+    "limit_per_query": 15,
+    "bot_script": "fitness"
+  },
+  {
+    "tier": 3,
+    "category": "insurance_company",
+    "recommended_product": "AI Sales Caller Bot (US$200–500/mo)",
+    "queries": [
+      { "q": "insurance company", "location": "Kingston Jamaica" },
+      { "q": "life insurance", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 10,
+    "bot_script": "insurance_sales"
+  },
+  {
+    "tier": 3,
+    "category": "solar_company",
+    "recommended_product": "AI Residential Outreach Bot (US$300–500/mo)",
+    "queries": [
+      { "q": "solar energy company", "location": "Jamaica" },
+      { "q": "solar installation", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 10,
+    "bot_script": "solar_sales"
+  },
+  {
+    "tier": 3,
+    "category": "car_dealership",
+    "recommended_product": "Inventory Site + AI Follow-up Caller (US$400+/mo)",
+    "queries": [
+      { "q": "car dealership", "location": "Kingston Jamaica" },
+      { "q": "used cars", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 15,
+    "bot_script": "car_dealership"
+  },
+  {
+    "tier": 4,
+    "category": "digital_agency",
+    "recommended_product": "Supreme Suite White-label (US$55/mo)",
+    "queries": [
+      { "q": "digital marketing agency", "location": "Kingston Jamaica" },
+      { "q": "web design company", "location": "Jamaica" }
+    ],
+    "filter_no_website": false,
+    "limit_per_query": 10,
+    "bot_script": "saas_pitch"
+  }
+]
