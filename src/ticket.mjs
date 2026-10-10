@@ -63,7 +63,29 @@ export async function maybeCreateTicket({ chatId, name, phone, extraction, messa
 
   if (error) {
     console.error("[ticket] create failed", error.message);
-  } else {
-    console.log(`[ticket] created ${id} — [${extraction.category}/${extraction.priority}] ${extraction.summary?.slice(0, 80)}`);
+    return;
+  }
+
+  console.log(`[ticket] created ${id} — [${extraction.category}/${extraction.priority}] ${extraction.summary?.slice(0, 80)}`);
+
+  // Fire push notification to Jordan's phone via the conglomerate PWA.
+  const pushUrl = process.env.PUSH_NOTIFY_URL;
+  const pushSecret = process.env.PUSH_NOTIFY_SECRET;
+  if (pushUrl && pushSecret) {
+    const clientLabel = name || phone || "Client";
+    void fetch(pushUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-push-secret": pushSecret,
+      },
+      body: JSON.stringify({
+        title: `${clientLabel} — ${extraction.category}`,
+        body: extraction.summary?.slice(0, 120) ?? "Needs attention",
+        url: "/jarvis/whatsapp",
+        tag: id,
+        urgent: extraction.priority === "high",
+      }),
+    }).catch((e) => console.error("[ticket] push failed", e.message));
   }
 }
