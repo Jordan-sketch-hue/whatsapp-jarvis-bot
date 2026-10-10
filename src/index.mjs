@@ -30,6 +30,7 @@ import { startServer } from "./server.mjs";
 import { maybeAutoReply, noteOutbound } from "./autoreply.mjs";
 import { notifyClientMessage, notifyInstant } from "./notify.mjs";
 import { sendAlert, setAlertSock } from "./alert.mjs";
+import { maybeCreateTicket } from "./ticket.mjs";
 
 const DEBOUNCE_MS = Number(process.env.DEBOUNCE_MS) || 8000;
 const logger = pino({ level: process.env.LOG_LEVEL || "warn" });
@@ -121,6 +122,7 @@ async function flush(chatId) {
     });
     console.log(`[card] ${buf.name || phone}: [${extraction.category}/${extraction.priority}] ${extraction.summary}`);
     void notifyClientMessage({ clientName: buf.name, phone, extraction, transcript: buf.transcript });
+    void maybeCreateTicket({ chatId, name: buf.name, phone, extraction, message: latest });
   } catch (e) {
     logger.error({ e: e.message }, "write failed");
   }
