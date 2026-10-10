@@ -6,10 +6,12 @@
         "dev": "tsx watch src/index.ts",
         "build": "tsc",
         "start": "node dist/index.js",
-        "scrape": "node dist/scraper.js"
+        "scrape": "node dist/scraper.js",
+    "scrape-yello": "node dist/scraper-yello.js"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.132.1",
+        "cheerio": "^1.2.0",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
         "groq-sdk": "^0.7.0",
@@ -22,6 +24,7 @@
         "@types/node": "^22.0.0",
         "@types/pg": "^8.23.1",
         "@types/ws": "^8.5.12",
+        "puppeteer": "^25.13.0",
         "tsx": "^4.19.0",
         "typescript": "^5.5.4"
     }
