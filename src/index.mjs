@@ -122,7 +122,7 @@ async function flush(chatId) {
     });
     console.log(`[card] ${buf.name || phone}: [${extraction.category}/${extraction.priority}] ${extraction.summary}`);
     void notifyClientMessage({ clientName: buf.name, phone, extraction, transcript: buf.transcript });
-    void maybeCreateTicket({ chatId, name: buf.name, phone, extraction, message: latest });
+    void maybeCreateTicket({ chatId, name: buf.name, phone, extraction, message: latest, transcript: buf.transcript, sock: shared.sock });
   } catch (e) {
     logger.error({ e: e.message }, "write failed");
   }
