@@ -532,7 +532,7 @@ async function notifyJordan(data: {
 function buildGather(say: string, stage?: string) {
   const base = process.env.PUBLIC_URL;
   const encoded = encodeURIComponent(say);
-  const stageParam = stage ? `&stage=${encodeURIComponent(stage)}` : "";
+  const stageParam = stage ? `&amp;stage=${encodeURIComponent(stage)}` : "";
   // <Play> streams Azure TTS with per-stage prosody. <Say> fallback fires if TTS errors.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
