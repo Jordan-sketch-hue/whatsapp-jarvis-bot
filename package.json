@@ -10,12 +10,12 @@
     "scrape-yello": "node dist/scraper-yello.js"
     },
     "dependencies": {
-        "@deepgram/sdk": "^3.9.0",
-        "@supabase/supabase-js": "^2.45.0",
+        "@anthropic-ai/sdk": "^0.132.1",
         "cheerio": "^1.2.0",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
         "groq-sdk": "^0.7.0",
+        "pg": "^8.23.1",
         "twilio": "^5.3.4",
         "ws": "^8.18.0"
     },
