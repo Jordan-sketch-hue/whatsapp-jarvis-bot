@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import twilio from "twilio";
 import { Conversation } from "./conversation";
-import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled } from "./db";
+import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession } from "./db";
 import { initiateCall } from "./call";
 
 const app = express();
@@ -14,6 +14,30 @@ const server = createServer(app);
 // sessions Map + timestamps for periodic cleanup
 const sessions = new Map<string, Conversation>();
 const sessionTimestamps = new Map<string, number>();
+
+// DB-backed session helpers — memory is fast cache, DB is source of truth
+async function getSession(callSid: string): Promise<Conversation | null> {
+  const mem = sessions.get(callSid);
+  if (mem) return mem;
+  const data = await loadCallSession(callSid);
+  if (!data) return null;
+  const conv = Conversation.fromJSON(data);
+  sessions.set(callSid, conv);
+  sessionTimestamps.set(callSid, Date.now());
+  return conv;
+}
+
+async function setSession(callSid: string, conv: Conversation): Promise<void> {
+  sessions.set(callSid, conv);
+  sessionTimestamps.set(callSid, Date.now());
+  await saveCallSession(callSid, conv.toJSON());
+}
+
+async function removeSession(callSid: string): Promise<void> {
+  sessions.delete(callSid);
+  sessionTimestamps.delete(callSid);
+  await deleteCallSession(callSid);
+}
 
 // Simple in-memory TTS cache (text → MP3 buffer, max 100 entries, 1hr TTL)
 const ttsCache = new Map<string, { buf: Buffer; ts: number }>();
@@ -282,8 +306,7 @@ app.post("/twiml", validateTwilio, async (req, res) => {
   const conv = pending ?? new Conversation();
   sessions.delete(`pending_${to}`);
   sessionTimestamps.delete(`pending_${to}`);
-  sessions.set(callSid, conv);
-  sessionTimestamps.set(callSid, Date.now());
+  await setSession(callSid, conv);
 
   const base = process.env.PUBLIC_URL;
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -301,11 +324,10 @@ app.post("/intro", validateTwilio, async (req, res) => {
   const heard = (req.body.SpeechResult || "").trim();
   console.log("[INTRO] CallSid:", callSid, "| Heard:", heard || "(silent)");
 
-  let conv = sessions.get(callSid);
+  let conv = await getSession(callSid);
   if (!conv) {
     conv = new Conversation();
-    sessions.set(callSid, conv);
-    sessionTimestamps.set(callSid, Date.now());
+    await setSession(callSid, conv);
   }
 
   const greeting = conv.getGreeting();
@@ -318,11 +340,10 @@ app.post("/intro-silence", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   console.log("[INTRO-SILENCE] No speech at connect, greeting anyway. CallSid:", callSid);
 
-  let conv = sessions.get(callSid);
+  let conv = await getSession(callSid);
   if (!conv) {
     conv = new Conversation();
-    sessions.set(callSid, conv);
-    sessionTimestamps.set(callSid, Date.now());
+    await setSession(callSid, conv);
   }
 
   res.type("text/xml").send(buildGather(conv.getGreeting(), "greeting"));
@@ -341,11 +362,10 @@ app.post("/gather", validateTwilio, async (req, res) => {
     return;
   }
 
-  let conv = sessions.get(callSid);
+  let conv = await getSession(callSid);
   if (!conv) {
     conv = new Conversation();
-    sessions.set(callSid, conv);
-    sessionTimestamps.set(callSid, Date.now());
+    await setSession(callSid, conv);
   }
 
   conv.silenceStreak = 0;
@@ -356,8 +376,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     const currentStage = conv.getStage();
     if (ended) {
       await finalizeCall(callSid, req.body.To || "", conv, 0);
-      sessions.delete(callSid);
-      sessionTimestamps.delete(callSid);
+      await removeSession(callSid);
       const encoded = encodeURIComponent(reply);
       const stageParam = currentStage ? `&stage=${encodeURIComponent(currentStage)}` : "";
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -366,6 +385,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
   <Hangup/>
 </Response>`);
     } else {
+      await setSession(callSid, conv);
       res.type("text/xml").send(buildGather(reply, currentStage));
     }
   } catch (e: any) {
@@ -378,7 +398,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
 // ─── No input ─────────────────────────────────────────────────────────────────
 app.post("/no-input", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid;
-  const conv = sessions.get(callSid);
+  const conv = await getSession(callSid);
   if (!conv) {
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
     return;
@@ -390,13 +410,13 @@ app.post("/no-input", validateTwilio, async (req, res) => {
     const nudge = conv.silenceStreak === 1
       ? "Sorry, I didn't catch that — could you say that again?"
       : "Still there? Take your time, I'm listening.";
+    await setSession(callSid, conv);
     res.type("text/xml").send(buildGather(nudge));
     return;
   }
 
   await finalizeCall(callSid, req.body.To || "", conv, 0);
-  sessions.delete(callSid);
-  sessionTimestamps.delete(callSid);
+  await removeSession(callSid);
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Play>${process.env.PUBLIC_URL}/tts?text=${encodeURIComponent("No problem — feel free to reach us at J Supreme Tech anytime. Have a great day!")}</Play>
@@ -421,11 +441,10 @@ app.post("/call-status", validateTwilio, async (req, res) => {
       duration_seconds: duration,
     });
   } else if (CallStatus === "completed") {
-    const conv = sessions.get(CallSid);
+    const conv = await getSession(CallSid);
     if (conv) {
       await finalizeCall(CallSid, To, conv, duration);
-      sessions.delete(CallSid);
-      sessionTimestamps.delete(CallSid);
+      await removeSession(CallSid);
     }
   }
 

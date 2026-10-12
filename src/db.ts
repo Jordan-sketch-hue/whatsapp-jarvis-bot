@@ -65,6 +65,11 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS call_sessions (
+      call_sid TEXT PRIMARY KEY,
+      state JSONB NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS sales_leads (
       id SERIAL PRIMARY KEY,
       place_id TEXT UNIQUE NOT NULL,
@@ -198,6 +203,34 @@ export async function getNewLeads(limit = 20): Promise<SalesLead[]> {
 export async function markLeadCalled(id: number) {
   try {
     await pool.query("UPDATE sales_leads SET status='called', called_at=NOW() WHERE id=$1", [id]);
+  } catch { /* non-fatal */ }
+}
+
+export async function saveCallSession(callSid: string, state: object): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO call_sessions (call_sid, state, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (call_sid) DO UPDATE SET state = EXCLUDED.state, updated_at = NOW()`,
+      [callSid, JSON.stringify(state)]
+    );
+  } catch (e: any) {
+    console.error("[DB] saveCallSession error:", e.message);
+  }
+}
+
+export async function loadCallSession(callSid: string): Promise<object | null> {
+  try {
+    const res = await pool.query("SELECT state FROM call_sessions WHERE call_sid = $1", [callSid]);
+    return res.rows[0]?.state ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteCallSession(callSid: string): Promise<void> {
+  try {
+    await pool.query("DELETE FROM call_sessions WHERE call_sid = $1", [callSid]);
   } catch { /* non-fatal */ }
 }
 

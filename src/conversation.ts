@@ -603,4 +603,31 @@ Always end with one of these — never leave the call without a YES to something
   async scoreCall(): Promise<CallScores> {
     return scoreTranscript(this.getTranscript());
   }
+
+  toJSON(): object {
+    return {
+      stage: this.stage,
+      history: this.history,
+      prospect: this.prospect,
+      mockup: this.mockup,
+      objectionType: this.objectionType,
+      turnCount: this.turnCount,
+      stageTurnCount: this.stageTurnCount,
+      silenceStreak: this.silenceStreak,
+      dncRequested: this.dncRequested,
+    };
+  }
+
+  static fromJSON(data: any): Conversation {
+    const conv = new Conversation(data.prospect ?? {});
+    conv["stage"] = data.stage ?? "greeting";
+    conv["history"] = data.history ?? [];
+    conv["mockup"] = data.mockup ?? { requested: false, questions_asked: 0 };
+    conv["objectionType"] = data.objectionType ?? null;
+    conv["turnCount"] = data.turnCount ?? 0;
+    conv["stageTurnCount"] = data.stageTurnCount ?? 0;
+    conv.silenceStreak = data.silenceStreak ?? 0;
+    conv["dncRequested"] = data.dncRequested ?? false;
+    return conv;
+  }
 }
