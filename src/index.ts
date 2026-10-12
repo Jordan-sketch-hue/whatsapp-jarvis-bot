@@ -100,18 +100,18 @@ function isWithinBusinessHours(): boolean {
 
 // ─── Rime AI TTS endpoint ─────────────────────────────────────────────────────
 const STAGE_SPEAKER: Record<string, string> = {
-  greeting:          "petal",
-  qualify:           "petal",
-  mockup_offer:      "petal",
-  mockup_collect:    "petal",
-  pitch:             "petal",
-  objection_classify:"petal",
-  objection_address: "petal",
-  hesitation_close:  "petal",
-  close:             "petal",
-  schedule:          "petal",
-  follow_up:         "petal",
-  end:               "petal",
+  greeting:          "godfrey",
+  qualify:           "godfrey",
+  mockup_offer:      "godfrey",
+  mockup_collect:    "godfrey",
+  pitch:             "godfrey",
+  objection_classify:"godfrey",
+  objection_address: "godfrey",
+  hesitation_close:  "godfrey",
+  close:             "godfrey",
+  schedule:          "godfrey",
+  follow_up:         "godfrey",
+  end:               "godfrey",
 };
 
 app.get("/tts", async (req, res) => {
