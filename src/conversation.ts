@@ -200,8 +200,8 @@ export async function scoreTranscript(transcript: string): Promise<CallScores> {
 
   const prompt = `Score this sales call on 5 dimensions (0-10 each). Return ONLY valid JSON, no other text.
 - interest: Did the prospect stay engaged?
-- usefulness: Did Aria deliver real value beyond just pitching?
-- resourcefulness: Did Aria handle unexpected questions well?
+- usefulness: Did Alex deliver real value beyond just pitching?
+- resourcefulness: Did Alex handle unexpected questions well?
 - emotional_resonance: Was the tone warm, confident, locally relevant?
 - success: Did the call end with a close, booking, or mockup YES?
 
@@ -260,11 +260,11 @@ export class Conversation {
     // Warm lead — we already know who they are and what they need
     if (p.company_name && p.industry) {
       const product = p.recommended_service ?? "a digital solution";
-      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? … Perfect. This is Aria calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
+      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? Perfect. This is Alex calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
     }
 
     // Cold call — no intel
-    return `Hi there, this is Aria calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
+    return `Hi there, this is Alex calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
@@ -330,7 +330,7 @@ export class Conversation {
   }
 
   private buildSystem(): string {
-    const identity = `You are Aria, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
+    const identity = `You are Alex, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
 You are warm, confident, knowledgeable, and persuasive. Professional Caribbean tone — not stiff, not slang.
 PHONE CALL RULES — READ CAREFULLY:
 - Every reply must be a COMPLETE thought. Never end mid-sentence or mid-idea.

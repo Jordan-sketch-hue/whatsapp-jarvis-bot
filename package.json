@@ -1,6 +1,6 @@
 {
     "name": "ai-sales-bot",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "main": "dist/index.js",
     "scripts": {
         "dev": "tsx watch src/index.ts",

@@ -374,10 +374,13 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const responsePromise = conv.respond(speechResult);
   pendingResponses.set(callSid, responsePromise);
 
-  // Return filler instantly so the prospect hears something within ~100ms
+  // Play instant filler via Twilio's own TTS (no external API) while LLM runs
   const base = process.env.PUBLIC_URL;
+  const fillers = ["Sure.", "Got it.", "Mm-hmm.", "Right.", "I see."];
+  const filler = fillers[Math.floor(Math.random() * fillers.length)];
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="Polly.Joanna">${filler}</Say>
   <Redirect method="POST">${base}/respond?callSid=${encodeURIComponent(callSid)}</Redirect>
 </Response>`);
 });
