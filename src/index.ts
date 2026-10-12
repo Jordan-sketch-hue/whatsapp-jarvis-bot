@@ -296,10 +296,10 @@ app.post("/call-leads", async (req, res) => {
   res.json({ queued: results.filter(r => r.status === "queued").length, results });
 });
 
-// ─── TwiML entry — wait for prospect to speak first ──────────────────────────
+// ─── TwiML entry — play greeting immediately, then gather ────────────────────
 app.all("/twiml", validateTwilio, async (req, res) => {
-  const callSid = req.body.CallSid || "unknown";
-  const to = req.body.To || "";
+  const callSid = req.body.CallSid || req.query.CallSid as string || "unknown";
+  const to = req.body.To || req.query.To as string || "";
   console.log("[TWIML] CallSid:", callSid);
 
   const pending = sessions.get(`pending_${to}`);
@@ -308,13 +308,17 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   sessionTimestamps.delete(`pending_${to}`);
   await setSession(callSid, conv);
 
+  // Play greeting first (outside Gather) so Twilio doesn't hear its own audio as speech
   const base = process.env.PUBLIC_URL;
+  const greeting = encodeURIComponent(conv.getGreeting());
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${base}/intro" method="POST"
-          timeout="1" speechTimeout="1" speechModel="phone_call" language="en-US">
+  <Play>${base}/tts?text=${greeting}&amp;stage=greeting</Play>
+  <Gather input="speech" action="${base}/gather" method="POST"
+          speechTimeout="auto" speechModel="phone_call"
+          language="en-US" timeout="12">
   </Gather>
-  <Redirect method="POST">${base}/intro-silence</Redirect>
+  <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`);
 });
 
@@ -533,13 +537,13 @@ function buildGather(say: string, stage?: string) {
   const base = process.env.PUBLIC_URL;
   const encoded = encodeURIComponent(say);
   const stageParam = stage ? `&amp;stage=${encodeURIComponent(stage)}` : "";
-  // <Play> streams Azure TTS with per-stage prosody. <Say> fallback fires if TTS errors.
+  // Play BEFORE Gather so Twilio doesn't pick up its own TTS as speech input
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="10">
-    <Play>${base}/tts?text=${encoded}${stageParam}</Play>
+          language="en-US" timeout="12">
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
