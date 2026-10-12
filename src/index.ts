@@ -15,6 +15,9 @@ const server = createServer(app);
 const sessions = new Map<string, Conversation>();
 const sessionTimestamps = new Map<string, number>();
 
+// Pending LLM responses keyed by callSid — filler plays while these resolve
+const pendingResponses = new Map<string, Promise<{ text: string; ended: boolean }>>();
+
 // DB-backed session helpers — memory is fast cache, DB is source of truth
 async function getSession(callSid: string): Promise<Conversation | null> {
   const mem = sessions.get(callSid);
@@ -347,14 +350,13 @@ app.post("/intro-silence", validateTwilio, async (req, res) => {
   res.type("text/xml").send(buildGather(conv.getGreeting(), "greeting"));
 });
 
-// ─── Handle speech input ─────────────────────────────────────────────────────
+// ─── Handle speech input — return filler instantly, process LLM in background ─
 app.post("/gather", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid;
   const speechResult = req.body.SpeechResult || "";
   const confidence = parseFloat(req.body.Confidence ?? "1");
   console.log("[GATHER] CallSid:", callSid, "| Confidence:", confidence.toFixed(2), "| Speech:", speechResult.slice(0, 80));
 
-  // Low-confidence transcription — ask to repeat rather than misfire
   if (confidence < 0.5 && speechResult) {
     res.type("text/xml").send(buildGather("Sorry, I didn't catch that clearly — could you say that one more time?"));
     return;
@@ -367,11 +369,44 @@ app.post("/gather", validateTwilio, async (req, res) => {
   }
 
   conv.silenceStreak = 0;
+
+  // Kick off LLM immediately — don't await it here
+  const responsePromise = conv.respond(speechResult);
+  pendingResponses.set(callSid, responsePromise);
+
+  // Return filler instantly so the prospect hears something within ~100ms
+  const base = process.env.PUBLIC_URL;
+  res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Redirect method="POST">${base}/respond?callSid=${encodeURIComponent(callSid)}</Redirect>
+</Response>`);
+});
+
+// ─── Respond — await the pending LLM promise and return real TwiML ────────────
+app.post("/respond", validateTwilio, async (req, res) => {
+  const callSid = (req.query.callSid || req.body.CallSid) as string;
+  const base = process.env.PUBLIC_URL;
+
+  const promise = pendingResponses.get(callSid);
+  if (!promise) {
+    // No pending response — something went wrong, graceful fallback
+    res.type("text/xml").send(buildGather("One moment please."));
+    return;
+  }
+
+  pendingResponses.delete(callSid);
+
   try {
-    const { text: reply, ended } = await conv.respond(speechResult);
-    console.log("[GATHER] Stage:", conv.getStage(), "| Reply:", reply.slice(0, 80), "| ended:", ended);
+    const { text: reply, ended } = await promise;
+    const conv = await getSession(callSid);
+    if (!conv) {
+      res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
+      return;
+    }
 
     const currentStage = conv.getStage();
+    console.log("[RESPOND] Stage:", currentStage, "| Reply:", reply.slice(0, 80), "| ended:", ended);
+
     if (ended) {
       await finalizeCall(callSid, req.body.To || "", conv, 0);
       await removeSession(callSid);
@@ -379,7 +414,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
       const stageParam = currentStage ? `&stage=${encodeURIComponent(currentStage)}` : "";
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${process.env.PUBLIC_URL}/tts?text=${encoded}${stageParam}</Play>
+  <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   <Hangup/>
 </Response>`);
     } else {
@@ -387,7 +422,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
       res.type("text/xml").send(buildGather(reply, currentStage));
     }
   } catch (e: any) {
-    console.error("[GATHER] Error:", e.message);
+    console.error("[RESPOND] Error:", e.message);
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response><Say>Sorry about that, one moment.</Say><Hangup/></Response>`);
   }
