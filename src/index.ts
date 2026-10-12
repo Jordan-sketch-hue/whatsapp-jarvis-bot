@@ -540,7 +540,6 @@ function buildGather(say: string, stage?: string) {
           speechTimeout="auto" speechModel="phone_call"
           language="en-US" timeout="10">
     <Play>${base}/tts?text=${encoded}${stageParam}</Play>
-    <Say>${say}</Say>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
