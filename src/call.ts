@@ -11,13 +11,9 @@ export async function initiateCall(to: string): Promise<string> {
     To: to,
     From: from,
     Url: `${base}/twiml`,
+    StatusCallback: `${base}/call-status`,
+    StatusCallbackMethod: "POST",
   };
-
-  // StatusCallback may be rejected on trial accounts — only add on paid
-  if (isPaid) {
-    params.StatusCallback = `${base}/call-status`;
-    params.StatusCallbackMethod = "POST";
-  }
 
   // AMD and recording require a paid Twilio account
   if (isPaid) {
