@@ -147,7 +147,7 @@ app.get("/tts", async (req, res) => {
       body: JSON.stringify({
         text,
         speaker,
-        modelId: "mistv2",
+        modelId: "coda",
         samplingRate: 22050,
         speedAlpha: 0.95,
       }),
