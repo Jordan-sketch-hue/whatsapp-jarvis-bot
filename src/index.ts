@@ -98,21 +98,21 @@ function isWithinBusinessHours(): boolean {
   return day >= 1 && day <= 6 && hour >= 9 && hour < 18;
 }
 
-// ─── Azure TTS endpoint ───────────────────────────────────────────────────────
-// Per-stage prosody: warmer/faster on close, calm on qualify
-const STAGE_PROSODY: Record<string, { rate: string; pitch: string }> = {
-  greeting:          { rate: "-3%",  pitch: "+2%" },
-  qualify:           { rate: "-8%",  pitch: "0%"  },
-  mockup_offer:      { rate: "-5%",  pitch: "+1%" },
-  mockup_collect:    { rate: "-5%",  pitch: "0%"  },
-  pitch:             { rate: "-4%",  pitch: "+1%" },
-  objection_classify:{ rate: "-8%",  pitch: "0%"  },
-  objection_address: { rate: "-6%",  pitch: "0%"  },
-  hesitation_close:  { rate: "-3%",  pitch: "+2%" },
-  close:             { rate: "-3%",  pitch: "+3%" },
-  schedule:          { rate: "-4%",  pitch: "+1%" },
-  follow_up:         { rate: "-5%",  pitch: "0%"  },
-  end:               { rate: "-4%",  pitch: "0%"  },
+// ─── Rime AI TTS endpoint ─────────────────────────────────────────────────────
+// Stage → Rime speaker: calmer voices for listening stages, warmer for close
+const STAGE_SPEAKER: Record<string, string> = {
+  greeting:          "cove",
+  qualify:           "cove",
+  mockup_offer:      "cove",
+  mockup_collect:    "cove",
+  pitch:             "cove",
+  objection_classify:"cove",
+  objection_address: "cove",
+  hesitation_close:  "cove",
+  close:             "cove",
+  schedule:          "cove",
+  follow_up:         "cove",
+  end:               "cove",
 };
 
 app.get("/tts", async (req, res) => {
@@ -120,11 +120,9 @@ app.get("/tts", async (req, res) => {
   const stage = (req.query.stage as string) || "";
   if (!text) { res.status(400).send("text required"); return; }
 
-  const key  = process.env.AZURE_SPEECH_KEY;
-  const region = process.env.AZURE_SPEECH_REGION || "eastus";
-  if (!key) { res.status(500).send("Azure key not set"); return; }
+  const key = process.env.RIME_API_KEY;
+  if (!key) { res.status(500).send("Rime API key not set"); return; }
 
-  // Cache key includes stage so prosody variants are cached separately
   const cacheKey = stage ? `${stage}::${text}` : text;
   const cached = ttsCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < TTS_CACHE_TTL_MS) {
@@ -134,37 +132,34 @@ app.get("/tts", async (req, res) => {
     return;
   }
 
-  const prosody = STAGE_PROSODY[stage] ?? { rate: "-5%", pitch: "0%" };
-  const ssml = `<speak version='1.0' xml:lang='en-US'>
-  <voice name='en-US-AriaNeural'>
-    <prosody rate='${prosody.rate}' pitch='${prosody.pitch}'>${text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</prosody>
-  </voice>
-</speak>`;
+  const speaker = STAGE_SPEAKER[stage] ?? "cove";
 
   try {
-    const ttsRes = await fetch(
-      `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`,
-      {
-        method: "POST",
-        headers: {
-          "Ocp-Apim-Subscription-Key": key,
-          "Content-Type": "application/ssml+xml",
-          "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
-          "User-Agent": "aria-sales-bot",
-        },
-        body: ssml,
-      }
-    );
+    const ttsRes = await fetch("https://users.rime.ai/v1/rime-tts", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "Accept": "audio/mp3",
+      },
+      body: JSON.stringify({
+        text,
+        speaker,
+        modelId: "mist",
+        samplingRate: 22050,
+        speedAlpha: 0.95,
+      }),
+    });
 
     if (!ttsRes.ok) {
-      console.error("[TTS] Azure error:", ttsRes.status, await ttsRes.text());
+      const errText = await ttsRes.text();
+      console.error("[TTS] Rime error:", ttsRes.status, errText);
       res.status(502).send("TTS error");
       return;
     }
 
     const buf = Buffer.from(await ttsRes.arrayBuffer());
 
-    // Cache (evict oldest if over 100 entries)
     if (ttsCache.size >= 100) {
       const oldest = [...ttsCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
       if (oldest) ttsCache.delete(oldest[0]);
