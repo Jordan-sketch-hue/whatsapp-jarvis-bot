@@ -288,9 +288,8 @@ app.post("/twiml", validateTwilio, async (req, res) => {
   const base = process.env.PUBLIC_URL;
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Pause length="0.03"/>
   <Gather input="speech" action="${base}/intro" method="POST"
-          timeout="3" speechTimeout="1" speechModel="phone_call" language="en-US">
+          timeout="12" speechTimeout="1" speechModel="phone_call" language="en-US">
   </Gather>
   <Redirect method="POST">${base}/intro-silence</Redirect>
 </Response>`);
