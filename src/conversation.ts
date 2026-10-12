@@ -450,7 +450,7 @@ Always end with one of these — never leave the call without a YES to something
 - Mockup: "Sending it within 24 hours. I'll call back once you've had a look."`;
 
       case "follow_up":
-        return "Confirm all details and wrap up warmly. Leave them feeling great about the call.";
+        return "They want to move forward. If you do not have their WhatsApp number yet, ask for it now so you can send the trial link or proposal. If you already have it, confirm what you are sending and wrap up warmly.";
 
       case "end":
         return "Thank them genuinely. Wish them well. End naturally.";
@@ -535,7 +535,8 @@ Always end with one of these — never leave the call without a YES to something
         return "follow_up";
 
       case "follow_up":
-        return "end";
+        // Give at least 2 turns to collect WhatsApp/email before ending
+        return this.stageTurnCount >= 2 ? "end" : "follow_up";
 
       default:
         return "end";
