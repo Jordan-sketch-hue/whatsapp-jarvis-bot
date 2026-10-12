@@ -297,7 +297,7 @@ app.post("/call-leads", async (req, res) => {
 });
 
 // ─── TwiML entry — wait for prospect to speak first ──────────────────────────
-app.post("/twiml", validateTwilio, async (req, res) => {
+app.all("/twiml", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   const to = req.body.To || "";
   console.log("[TWIML] CallSid:", callSid);
