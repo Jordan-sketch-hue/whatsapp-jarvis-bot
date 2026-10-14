@@ -31,6 +31,7 @@ import { maybeAutoReply, noteOutbound } from "./autoreply.mjs";
 import { notifyClientMessage, notifyInstant } from "./notify.mjs";
 import { sendAlert, setAlertSock } from "./alert.mjs";
 import { maybeCreateTicket } from "./ticket.mjs";
+import { maybeForwardInbound } from "./inbound-forward.mjs";
 
 const DEBOUNCE_MS = Number(process.env.DEBOUNCE_MS) || 8000;
 const logger = pino({ level: process.env.LOG_LEVEL || "warn" });
@@ -148,6 +149,11 @@ function onMessages({ messages, type }) {
       msg.key.fromMe ? null : msg.pushName || null,
       isGroup,
     );
+
+    // Forward owner/known JID messages to external webhooks immediately.
+    if (!msg.key.fromMe && text) {
+      void maybeForwardInbound(msg, text);
+    }
 
     // Instant ping to Jordan the moment a message lands — no debounce, no Claude.
     if (!msg.key.fromMe && !isGroup && text) {
