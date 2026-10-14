@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import twilio from "twilio";
+import { Pool } from "pg";
+import { runAll } from "./scraper";
 import { Conversation } from "./conversation";
 import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession } from "./db";
 import { initiateCall } from "./call";
@@ -580,6 +582,40 @@ function buildGather(say: string, stage?: string) {
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
 }
+
+
+// ─── Scrape leads from OpenStreetMap ─────────────────────────────────────────
+app.post("/scrape", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: "unauthorized" });
+
+  const { limit } = req.body as { limit?: string };
+  runAll(limit ? parseInt(limit) : 30).catch((e: unknown) => console.error("[SCRAPE]", (e as Error).message));
+  res.json({ started: true, message: "Scraper running in background — check /leads for new data" });
+});
+
+// ─── List leads with stats ────────────────────────────────────────────────────
+app.get("/leads", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: "unauthorized" });
+
+  const dbPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL?.includes("supabase.co") ? { rejectUnauthorized: false } : undefined,
+  });
+
+  try {
+    const [statsRes, rowsRes] = await Promise.all([
+      dbPool.query(`SELECT COUNT(*) FILTER (WHERE status = 'new') AS new_count, COUNT(*) FILTER (WHERE status = 'called') AS called_count, COUNT(*) FILTER (WHERE status = 'dnc') AS dnc_count, COUNT(*) AS total FROM sales_leads`),
+      dbPool.query(`SELECT id, business_name, phone, address, category, recommended_product, has_website, status, called_at, created_at FROM sales_leads ORDER BY created_at DESC LIMIT 200`),
+    ]);
+    res.json({ stats: statsRes.rows[0], leads: rowsRes.rows });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  } finally {
+    await dbPool.end();
+  }
+});
 
 app.get("/health", (_, res) => res.json({
   status: "ok",
