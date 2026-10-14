@@ -178,6 +178,7 @@ async function claudeChat(
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
+        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
@@ -224,6 +225,7 @@ Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
+        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
