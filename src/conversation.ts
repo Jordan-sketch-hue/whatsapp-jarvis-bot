@@ -49,6 +49,9 @@ export interface ProspectBrief {
   recommended_service?: string;
   wa_number?: string;
   notes?: string;
+  inbound?: boolean;
+  previous_stage?: string;
+  previous_interest?: string;
 }
 
 const JST_CATALOG = `
@@ -395,6 +398,22 @@ Notes: ${p.notes ?? ""}`;
 
       case "qualify": {
         const p = this.prospect;
+
+        if (p.inbound && p.company_name) {
+          const prevStage = p.previous_stage ?? "";
+          const prevInterest = p.previous_interest ?? "";
+          if (prevStage && ["close","schedule","follow_up","contact_capture"].includes(prevStage)) {
+            return `This is a warm callback — they were close to committing last time (stage: ${prevStage}). ${prevInterest ? "They showed interest in: " + prevInterest + "." : ""} Listen first. Ask: "Did you get a chance to think it over? Any questions I can answer for you?" Then answer what they need and move toward the close naturally. Do NOT re-pitch from scratch.`;
+          }
+          if (prevInterest) {
+            return `They called back. Last time they were interested in ${prevInterest} but didn't commit. Listen to what they say, answer their questions, then offer to move forward. Keep it conversational.`;
+          }
+          return `Inbound callback — unknown history. Listen to what they're asking. Answer questions fully and honestly. If there's a buying signal, offer the free mockup or a close naturally.`;
+        }
+
+        if (p.inbound) {
+          return `They called in cold. Listen to what they need. Answer questions about J Supreme Tech services clearly. Do NOT launch into a pitch — let them lead. If they show interest, offer the free mockup or a SaaS trial.`;
+        }
 
         if (p.company_name && p.industry && p.has_website) {
           return `${p.company_name} already has a website. DO NOT pitch a basic website. Lead with upgrade angle: "You've already got a site â€” the businesses pulling ahead right now are adding an app and an AI chatbot to convert more visitors and reach leads automatically. Can I show you a FREE visual mockup of what that could look like for ${p.company_name}?"`;

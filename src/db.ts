@@ -247,3 +247,42 @@ export async function hasBeenCalledRecently(phone: string, hours = 24): Promise<
     return false;
   }
 }
+
+// Look up the last call context for a phone number (inbound callbacks)
+export async function getLastCallContext(phone: string): Promise<{
+  company_name?: string;
+  industry?: string;
+  has_website?: boolean;
+  recommended_product?: string;
+  stage_reached?: string;
+  mockup_requested?: boolean;
+} | null> {
+  try {
+    const normalized = phone.replace(/[\s\-\(\)]/g, "");
+    const leadRes = await pool.query(
+      `SELECT business_name, category, has_website, recommended_product
+       FROM sales_leads WHERE replace(replace(replace(phone,' ',''),'-',''),'(','') ILIKE $1 LIMIT 1`,
+      [`%${normalized.slice(-7)}`]
+    );
+    const callRes = await pool.query(
+      `SELECT stage_reached, mockup_requested
+       FROM sales_calls WHERE replace(replace(replace(to_number,' ',''),'-',''),'(','') ILIKE $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [`%${normalized.slice(-7)}`]
+    );
+    if (!leadRes.rows[0] && !callRes.rows[0]) return null;
+    const lead = leadRes.rows[0] ?? {};
+    const call = callRes.rows[0] ?? {};
+    return {
+      company_name: lead.business_name,
+      industry: lead.category,
+      has_website: lead.has_website,
+      recommended_product: lead.recommended_product,
+      stage_reached: call.stage_reached,
+      mockup_requested: call.mockup_requested,
+    };
+  } catch (e) {
+    console.error("[DB] getLastCallContext error:", e.message);
+    return null;
+  }
+}

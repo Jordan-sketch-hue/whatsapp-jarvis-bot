@@ -5,7 +5,7 @@ import twilio from "twilio";
 import { Pool } from "pg";
 import { runAll } from "./scraper";
 import { Conversation } from "./conversation";
-import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession } from "./db";
+import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext } from "./db";
 import { initiateCall } from "./call";
 
 const app = express();
