@@ -5,7 +5,7 @@ import twilio from "twilio";
 import { Pool } from "pg";
 import { runAll } from "./scraper";
 import { Conversation } from "./conversation";
-import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext } from "./db";
+import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead } from "./db";
 import { initiateCall } from "./call";
 
 const app = express();
@@ -65,17 +65,17 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// â”€â”€â”€ Twilio webhook signature validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Only active when PUBLIC_URL is set (production). Skipped in dev.
+// --- SignalWire webhook signature validation ---
+// SignalWire uses same HMAC-SHA1 algo as Twilio — twilio.validateRequest works.
+// Header is x-signalwire-signature instead of x-twilio-signature.
 function validateTwilio(req: express.Request, res: express.Response, next: express.NextFunction) {
   const base = process.env.PUBLIC_URL;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const authToken = process.env.SIGNALWIRE_API_TOKEN;
   if (!base || !authToken) { next(); return; }
 
-  const signature = req.headers["x-twilio-signature"] as string | undefined;
+  const signature = (req.headers[“x-signalwire-signature”] ?? req.headers[“x-twilio-signature”]) as string | undefined;
   if (!signature) {
-    // Header missing â€” likely HTTPâ†’HTTPS redirect dropped it; log and pass through
-    console.warn("[SEC] Missing Twilio signature on", req.path, "â€” passing through (check PUBLIC_URL uses https://)");
+    console.warn(“[SEC] Missing SignalWire signature on”, req.path, “— passing through”);
     next();
     return;
   }
@@ -83,8 +83,7 @@ function validateTwilio(req: express.Request, res: express.Response, next: expre
   const url = `${base}${req.path}`;
   const valid = twilio.validateRequest(authToken, signature, url, req.body);
   if (!valid) {
-    // Signature mismatch â€” log URL for debugging but pass through in trial mode
-    console.warn("[SEC] Signature mismatch on", req.path, "url used:", url);
+    console.warn(“[SEC] Signature mismatch on”, req.path, “url used:”, url);
     next();
     return;
   }
@@ -136,7 +135,7 @@ app.get("/tts", async (req, res) => {
     return;
   }
 
-  const speaker = STAGE_SPEAKER[stage] ?? "cove";
+  const speaker = STAGE_SPEAKER[stage] ?? "godfrey";
 
   try {
     const ttsRes = await fetch("https://users.rime.ai/v1/rime-tts", {
@@ -534,6 +533,22 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
       contact_detail: contact.detail,
       next_action: nextAction,
     });
+    // Log to marketing_leads if marketing was discussed
+    if (conv.hadMarketingInterest()) {
+      const p = conv.getProspectData();
+      await logMarketingLead({
+        phone: toNumber,
+        business_name: p.company_name,
+        industry: p.industry,
+        has_website: p.has_website,
+        has_social: p.has_social,
+        interest_level: booked ? "hot" : (stage === "close" || stage === "objection_address") ? "warm" : "cold",
+        interested_services: ["social", "ads", "email", "ai_sales_bot"],
+        contact_method: contact?.method,
+        contact_detail: contact?.detail,
+        notes: p.notes,
+      });
+    }
     await notifyJordan({ callSid, toNumber, stage, booked, scores, mockup, contact, nextAction, transcript });
     console.log("[FINAL] Logged & notified. Stage:", stage, "| Mockup:", mockup.requested, "| DNC:", conv.isDncRequested());
   } catch (e: any) {
@@ -636,4 +651,5 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Aria AI Sales Bot running on port ${PORT}`));
+
 

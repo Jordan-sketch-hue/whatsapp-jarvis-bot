@@ -1,8 +1,8 @@
-import { Pool } from "pg";
+﻿import { Pool } from "pg";
 import type { CallScores } from "./conversation";
 
 if (!process.env.DATABASE_URL) {
-  console.warn("[DB] DATABASE_URL not set — call logging will fail. Set it in Railway env vars.");
+  console.warn("[DB] DATABASE_URL not set â€” call logging will fail. Set it in Railway env vars.");
 }
 
 const pool = new Pool({
@@ -26,6 +26,8 @@ export interface CallLog {
   mockup_colors?: string;
   mockup_style?: string;
   next_action?: string;
+  contact_method?: string;
+  contact_detail?: string;
 }
 
 export async function ensureSchema() {
@@ -177,6 +179,8 @@ export interface SalesLead {
   business_name: string;
   category: string;
   recommended_product: string;
+  has_website?: boolean;
+  notes?: string;
 }
 
 export async function getNewLeads(limit = 20): Promise<SalesLead[]> {
@@ -281,8 +285,48 @@ export async function getLastCallContext(phone: string): Promise<{
       stage_reached: call.stage_reached,
       mockup_requested: call.mockup_requested,
     };
-  } catch (e) {
+  } catch (e: any) {
     console.error("[DB] getLastCallContext error:", e.message);
     return null;
+  }
+}
+
+export interface MarketingLead {
+  phone: string;
+  business_name?: string;
+  industry?: string;
+  has_website?: boolean;
+  has_social?: boolean;
+  interest_level?: "hot" | "warm" | "cold";
+  interested_tier?: "starter" | "plus" | "elite";
+  interested_services?: string[];
+  contact_method?: string;
+  contact_detail?: string;
+  notes?: string;
+  sales_call_id?: number;
+}
+
+export async function logMarketingLead(data: MarketingLead): Promise<void> {
+  try {
+    await pool.query(
+      `INSERT INTO marketing_leads
+        (phone, business_name, industry, has_website, has_social,
+         interest_level, interested_tier, interested_services,
+         contact_method, contact_detail, notes, sales_call_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ON CONFLICT DO NOTHING`,
+      [
+        data.phone, data.business_name, data.industry,
+        data.has_website, data.has_social,
+        data.interest_level ?? "warm",
+        data.interested_tier,
+        data.interested_services ? `{${data.interested_services.join(",")}}` : null,
+        data.contact_method, data.contact_detail,
+        data.notes, data.sales_call_id ?? null,
+      ]
+    );
+    console.log("[DB] Marketing lead logged:", data.phone);
+  } catch (e: any) {
+    console.error("[DB] logMarketingLead error:", e.message);
   }
 }

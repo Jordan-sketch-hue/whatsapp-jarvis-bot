@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Lead scraper — finds businesses WITHOUT websites via Overpass API (OpenStreetMap).
  * 100% free, no API key required.
  * Usage: ts-node src/scraper.ts --query "nail salon" --location "Kingston Jamaica" --limit 50
@@ -16,28 +16,30 @@ const pool = new Pool({
 });
 
 // OSM tag → our category mapping
-const OSM_CATEGORY_MAP: Record<string, { tags: string[]; product: string; tier: number }> = {
-  nail_salon:        { tags: ["amenity=beauty_salon", "shop=beauty", "shop=nail_salon"], product: "Website + Booking (J$25K)", tier: 1 },
-  hair_salon:        { tags: ["amenity=hairdresser", "shop=hairdresser"], product: "Website + Gallery + Booking (J$25K)", tier: 1 },
-  barbershop:        { tags: ["amenity=barber", "shop=barber"], product: "Website + Booking (J$20K)", tier: 1 },
-  spa:               { tags: ["leisure=spa", "amenity=spa"], product: "Spa Site + Booking (J$30K)", tier: 1 },
-  restaurant:        { tags: ["amenity=restaurant", "amenity=fast_food"], product: "Website + Menu + Order (J$30K)", tier: 1 },
-  bakery:            { tags: ["shop=bakery"], product: "Website + Pre-Order (J$20K)", tier: 1 },
-  catering:          { tags: ["amenity=catering"], product: "Website + Quote Form (J$35K)", tier: 1 },
-  clothing_boutique: { tags: ["shop=clothes", "shop=fashion"], product: "E-commerce Website (J$35K)", tier: 1 },
-  auto_repair:       { tags: ["shop=car_repair", "amenity=car_repair"], product: "Website + Booking (J$25K)", tier: 1 },
-  car_detailing:     { tags: ["amenity=car_wash", "shop=car_wash"], product: "Website + Gallery (J$20K)", tier: 1 },
-  plumber:           { tags: ["shop=plumber"], product: "Website + Emergency Form (J$20K)", tier: 1 },
-  electrician:       { tags: ["shop=electrician"], product: "Website + Lead Capture (J$20K)", tier: 1 },
-  pharmacy:          { tags: ["amenity=pharmacy"], product: "Website + Refill Form (J$30K)", tier: 1 },
-  dentist:           { tags: ["amenity=dentist"], product: "Website + Patient Booking (J$50K)", tier: 2 },
-  real_estate_agent: { tags: ["office=estate_agent", "amenity=real_estate_agent"], product: "Property Site + CRM + AI Caller (J$50K)", tier: 2 },
-  accountant:        { tags: ["office=accountant"], product: "Client Portal + Website (J$40K)", tier: 2 },
-  lawyer:            { tags: ["office=lawyer", "office=notary"], product: "Case Intake + Client Portal (J$60K)", tier: 2 },
-  gym:               { tags: ["leisure=fitness_centre", "amenity=gym"], product: "Website + Class Booking (J$40K)", tier: 2 },
-  tour_operator:     { tags: ["tourism=information", "office=travel_agent"], product: "Direct Booking Site (J$50K)", tier: 2 },
-  guest_house:       { tags: ["tourism=guest_house", "tourism=hostel"], product: "Direct Booking (J$50K)", tier: 2 },
-  car_dealership:    { tags: ["shop=car", "shop=car_dealer"], product: "Inventory Site + AI Caller (US$400+/mo)", tier: 3 },
+// product_no_site = what to pitch if they have NO website yet
+// product_has_site = what to pitch if they ALREADY have a website (upgrade path)
+const OSM_CATEGORY_MAP: Record<string, { tags: string[]; product_no_site: string; product_has_site: string; tier: number }> = {
+  nail_salon:        { tags: ["amenity=beauty_salon", "shop=beauty", "shop=nail_salon"], product_no_site: "Website from J$50K — online booking, gallery, contact form", product_has_site: "GlowDesk J$35/mo — add online booking + loyalty points to your existing site", tier: 1 },
+  hair_salon:        { tags: ["amenity=hairdresser", "shop=hairdresser"], product_no_site: "Website from J$50K — gallery, online booking, contact form", product_has_site: "GlowDesk J$35/mo — add online booking + loyalty to your existing site", tier: 1 },
+  barbershop:        { tags: ["amenity=barber", "shop=barber"], product_no_site: "Website from J$50K — booking, hours, location, mobile-ready", product_has_site: "GlowDesk J$35/mo — add online booking + loyalty to your existing site", tier: 1 },
+  spa:               { tags: ["leisure=spa", "amenity=spa"], product_no_site: "Website from J$50K — gallery, services menu, online booking", product_has_site: "Marketing Starter J$30K/mo — IG/FB content, ads + AI Sales Bot to fill your bookings", tier: 1 },
+  restaurant:        { tags: ["amenity=restaurant", "amenity=fast_food"], product_no_site: "Website from J$50K — digital menu, online orders, contact form", product_has_site: "TableFlow J$69/mo — add reservations + online orders to your existing site", tier: 1 },
+  bakery:            { tags: ["shop=bakery"], product_no_site: "Website from J$50K — pre-order system, product gallery, contact form", product_has_site: "Marketing Starter J$30K/mo — IG content + ads to drive daily foot traffic", tier: 1 },
+  catering:          { tags: ["amenity=catering"], product_no_site: "Website from J$50K — event gallery, quote request form, contact", product_has_site: "Marketing Starter J$30K/mo — IG/FB content + event ads + AI Sales Bot for enquiries", tier: 1 },
+  clothing_boutique: { tags: ["shop=clothes", "shop=fashion"], product_no_site: "Website from J$50K — online store, product pages, payment ready", product_has_site: "Marketing Starter J$30K/mo — IG/FB fashion content + ads to drive sales", tier: 1 },
+  auto_repair:       { tags: ["shop=car_repair", "amenity=car_repair"], product_no_site: "Website from J$50K — services, booking form, location", product_has_site: "Marketing Starter J$30K/mo — Google/FB ads + AI Bot", tier: 1 },
+  car_detailing:     { tags: ["amenity=car_wash", "shop=car_wash"], product_no_site: "Website from J$50K — before/after gallery, booking form, pricing", product_has_site: "Marketing Starter J$30K/mo — IG reels + ads + AI Bot to fill weekly bookings", tier: 1 },
+  plumber:           { tags: ["shop=plumber"], product_no_site: "Website from J$50K — emergency call form, services, location", product_has_site: "Marketing Starter J$30K/mo — Google/FB visibility + AI Bot to capture emergency leads 24/7", tier: 1 },
+  electrician:       { tags: ["shop=electrician"], product_no_site: "Website from J$50K — lead capture, services list, location", product_has_site: "Marketing Starter J$30K/mo — Google/FB visibility + AI Bot to capture service leads 24/7", tier: 1 },
+  pharmacy:          { tags: ["amenity=pharmacy"], product_no_site: "Website from J$50K — hours, location, prescription refill form", product_has_site: "Marketing Starter J$30K/mo — local Google/FB ads + AI Bot for prescription enquiries", tier: 1 },
+  dentist:           { tags: ["amenity=dentist"], product_no_site: "Website from J$50K — patient booking, services, before/after gallery", product_has_site: "Marketing Plus J$55K/mo — Google ads + IG content + AI Bot to handle new patient enquiries", tier: 2 },
+  real_estate_agent: { tags: ["office=estate_agent", "amenity=real_estate_agent"], product_no_site: "Website from J$50K — property listings, contact form + AI Sales Bot add-on", product_has_site: "AI Sales Agent US$50/mo — calls your leads automatically, qualifies buyers/sellers 24/7", tier: 2 },
+  accountant:        { tags: ["office=accountant"], product_no_site: "Website from J$50K — includes a secure login where your clients upload documents, view reports, and message you directly", product_has_site: "Marketing Starter J$30K/mo — Google/LinkedIn visibility ads + AI Bot for new client enquiries", tier: 2 },
+  lawyer:            { tags: ["office=lawyer", "office=notary"], product_no_site: "Website from J$50K — includes a secure login where clients track their case, upload documents, and message you directly", product_has_site: "Marketing Starter J$30K/mo — Google visibility + AI Bot to handle new client intake 24/7", tier: 2 },
+  gym:               { tags: ["leisure=fitness_centre", "amenity=gym"], product_no_site: "Website from J$50K — class schedule, membership sign-up, online booking", product_has_site: "Marketing Starter J$30K/mo — IG/FB fitness content + ads + AI Bot for membership enquiries", tier: 2 },
+  tour_operator:     { tags: ["tourism=information", "office=travel_agent"], product_no_site: "Website from J$50K — tour listings, direct booking, itinerary pages", product_has_site: "TourBase J$49/mo — add online booking + payment to your existing site + Marketing Starter", tier: 2 },
+  guest_house:       { tags: ["tourism=guest_house", "tourism=hostel"], product_no_site: "Website from J$50K — room listings, direct booking, no Airbnb commission fees", product_has_site: "Marketing Starter J$30K/mo — IG/FB content + Google/FB ads to drive direct bookings", tier: 2 },
+  car_dealership:    { tags: ["shop=car", "shop=car_dealer"], product_no_site: "Website from J$50K — vehicle inventory site, contact form, financing enquiry form", product_has_site: "AI Sales Agent US$50/mo — calls your leads, qualifies buyers + Marketing Starter for inventory ads", tier: 3 },
 };
 
 // Jamaica bounding box — covers the whole island
@@ -61,19 +63,33 @@ interface OsmElement {
   tags?: Record<string, string>;
 }
 
+const OVERPASS_MIRRORS = [
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter", // VK Maps - no rate limit
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+];
+
 async function queryOverpass(osmTag: string, bbox: string): Promise<OsmElement[]> {
   const [key, val] = osmTag.split("=");
   const query = `[out:json][timeout:25];(node["${key}"="${val}"](${bbox});way["${key}"="${val}"](${bbox}););out center tags;`;
 
-  const res = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `data=${encodeURIComponent(query)}`,
-  });
-
-  if (!res.ok) throw new Error(`Overpass error: ${res.status}`);
-  const data = await res.json() as { elements: OsmElement[] };
-  return data.elements ?? [];
+  for (const mirror of OVERPASS_MIRRORS) {
+    try {
+      const res = await fetch(mirror, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+      if (!res.ok) { console.warn(`  [${mirror}] ${res.status} -- trying next`); continue; }
+      const data = await res.json() as { elements: OsmElement[] };
+      return data.elements ?? [];
+    } catch (e: any) {
+      console.warn(`  [${mirror}] ${e.message} -- trying next`);
+    }
+  }
+  throw new Error(`All Overpass mirrors failed for ${osmTag}`);
 }
 
 function buildPhone(tags: Record<string, string>): string {
@@ -124,7 +140,7 @@ async function scrapeCategory(category: string, location: string, limit: number)
             phone,
             address,
             category,
-            config.product,
+            hasWebsite(tags) ? config.product_has_site : config.product_no_site,
             hasWebsite(tags),
             `TIER:${config.tier} | OSM:${osmTag} | LOC:${location}${hasWebsite(tags) ? " | HAS_WEBSITE" : ""}`,
           ]
