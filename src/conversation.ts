@@ -54,16 +54,37 @@ export interface ProspectBrief {
   previous_interest?: string;
 }
 
+const CATEGORY_INTEL: Record<string, { angle: string; competitor_context: string; best_product: string }> = {
+  hair_salon:       { angle: "Salons live and die by repeat bookings and Instagram. Customers scroll IG to pick their next salon.", competitor_context: "Most Kingston salons have no site — the ones pulling clients are the ones posting reels weekly and running IG ads.", best_product: "GlowDesk (J$35/mo bookings + loyalty) + Marketing Starter (IG reels + ads). If no website: Website first (quote by market)." },
+  nail_salon:       { angle: "Nail clients book by DM or walk-in — businesses with booking links and IG convert far more.", competitor_context: "Nail salons with weekly reels and a 'Book Now' link in bio are taking clients from salons with no online presence.", best_product: "GlowDesk + Marketing. If no website: Website first." },
+  restaurant:       { angle: "People search Google for restaurants. No website = invisible. Facebook + IG posts drive weekly traffic.", competitor_context: "Restaurants with a Google listing, active Facebook, and an online menu get 3-5x more walk-ins and delivery orders.", best_product: "TableFlow (US$69/mo reservations + orders) + Marketing. If no website: Website first." },
+  lawyer:           { angle: "Clients Google 'lawyer Jamaica' before calling anyone. A professional site with clear services and a contact form is the first impression.", competitor_context: "Law firms with a clean website and Google reviews are getting enquiries their competitors miss completely.", best_product: "Website from J$50K (JA/Caribbean) or US$650+ (US/UK) — professional, builds instant client trust — + Marketing for Google visibility." },
+  real_estate_agent:{ angle: "Buyers and sellers search online first. A site with listings and a contact form captures leads 24/7.", competitor_context: "Agents with property listing sites and Facebook ads are closing deals while others rely on referrals alone.", best_product: "Website (JA J$50K | US US$650+) + AI Chatbot (answers property enquiries 24/7) + Marketing for lead ads." },
+  auto_repair:      { angle: "People search 'mechanic near me' — a Google-listed site with services and pricing converts searchers to customers.", competitor_context: "Shops showing up on Google Maps with a website and reviews are taking walk-in business from unlisted competitors.", best_product: "Website (JA J$50K | US US$650+) + Marketing (Google visibility + Facebook ads)." },
+  dentist:          { angle: "Patients want to see a professional site before booking. Online booking reduces no-shows dramatically.", competitor_context: "Dental practices with a site and Google presence fill appointment books faster than ones that rely on word of mouth.", best_product: "Website + GlowDesk (bookings) or custom booking integration + Marketing." },
+  spa:              { angle: "Spa clients are visual — they choose based on Instagram. Booking friction loses customers.", competitor_context: "Spas with weekly IG reels and an online booking link are fully booked while others sit quiet.", best_product: "GlowDesk + Marketing Starter (IG + reels + ads)." },
+  pharmacy:         { angle: "Pharmacies with a website listing hours, location, and services show up on Google when people need them.", competitor_context: "People search online before driving anywhere — pharmacies with a web presence get the call first.", best_product: "Website (JA J$50K | US US$650+) + Marketing (Google + Facebook)." },
+  insurance_agent:  { angle: "Trust is everything in insurance — a professional site with your credentials and services builds instant credibility.", competitor_context: "Agents with a professional web presence and active social media close more leads than those relying on referrals.", best_product: "Website (JA J$50K | US US$650+) + Marketing (IG + FB + Google ads targeting working professionals)." },
+};
+
+function getCategoryIntel(category?: string): string {
+  if (!category) return "";
+  const key = (category ?? "").toLowerCase().replace(/\s+/g, "_");
+  const intel = CATEGORY_INTEL[key];
+  if (!intel) return "";
+  return `CATEGORY INTEL for ${category.replace(/_/g,' ').toUpperCase()}:\n- Pitch angle: ${intel.angle}\n- Competitor context: ${intel.competitor_context}\n- Best product fit: ${intel.best_product}`;
+}
 const JST_CATALOG = `
-J SUPREME TECH â€” FULL SERVICE CATALOG
+J SUPREME TECH — FULL SERVICE CATALOG
 
-WEBSITES & APPS (one-time payment â€” you own the build):
-- Website: from J$50,000 â€” custom-built, mobile-ready, delivered in as little as 1 week
-- Mobile App: from J$80,000 â€” iOS ready in ~3 weeks; Google Play Store 1-2 months
-- Website + App Bundle: 20% OFF when you build BOTH together â€” biggest saving
-- IMPORTANT: One-time payment = you own the build. Does NOT include ongoing hosting, database access, or support. Choose the monthly option below for that.
+WEBSITES & APPS (ONE-TIME PAYMENT — you own the build outright, no recurring fees):
+- Website: from J$50,000 ONE-TIME — custom-built, mobile-ready, live in 1 week. YOU OWN IT.
+- Mobile App: from J$80,000 ONE-TIME — iOS + Android, live in 3-4 weeks. YOU OWN IT.
+- Website + App Bundle: 20% OFF when you build BOTH together — biggest saving
+- ALWAYS clarify: 'This is a one-time payment — you own the build outright. No monthly fee for the site or app itself.'
+- SAAS ALTERNATIVE: If they prefer monthly (no big upfront), check if we have a SaaS product for their category: salon/beauty=GlowDesk J$35/mo, restaurant=TableFlow J$69/mo, courier=FleetRun J$49/mo, tours=TourBase J$49/mo, school=EnrollIQ J$59/mo, property=DwellDesk J$89/mo, cafe/carwash=PunchPro J$29/mo. SaaS INCLUDES a branded website + backend. If no SaaS matches their category, stick with the one-time website build.
 
-MONTHLY SAAS â€” PAY MONTHLY, GET EVERYTHING (immediate setup, no contract):
+MONTHLY SAAS — PAY MONTHLY, GET EVERYTHING (immediate setup, no contract):
 - GlowDesk US$35/mo: bookings + loyalty for salons, nail shops, beauty
 - PunchPro US$29/mo: punch-card loyalty for cafes, car washes, laundry
 - FleetRun US$49/mo: dispatch + tracking for couriers, logistics
@@ -71,20 +92,40 @@ MONTHLY SAAS â€” PAY MONTHLY, GET EVERYTHING (immediate setup, no contract)
 - EnrollIQ US$59/mo: enrolment + attendance for schools, tutoring
 - TableFlow US$69/mo: reservations + orders for restaurants, bars
 - DwellDesk US$89/mo: tenant management for property owners, landlords
-- Monthly SaaS INCLUDES: immediate setup, hosting, support, and all future updates. Cancel anytime.
+- Every SaaS plan INCLUDES: your own branded website (fully editable), a business management backend (CRM/dashboard for your field), immediate setup, hosting, support, and all future updates. Cancel anytime. You OWN the web presence — the SaaS is the engine behind it.
 
-AI ADD-ONS (separate monthly services â€” white-labelled with your brand at setup):
-- AI Chatbot: US$50/mo â€” lives on your website, answers customer questions 24/7, handles bookings automatically
-- AI Sales Agent: US$50/mo â€” outbound AI that calls leads and books appointments for you (exactly like this call)
-- Both are SEPARATE services. You can add one or both to any website.
+WHAT IS A "CLIENT PORTAL" (explain this simply to any prospect who asks):
+A secure private login area built into their website — their clients sign in to: upload documents, view invoices and reports, track case or project status, and send messages directly. Think of it like a personal dashboard for each client's relationship with that business. Lawyers use it so clients track their case without calling daily. Accountants use it so clients upload tax documents securely and see their reports. Real estate agents use it so buyers/sellers track their deal and sign documents online. NEVER use jargon — always explain it as: "a private login area on your site where your clients can log in, upload documents, see their invoices, and message you directly — so everything is in one place instead of back-and-forth emails."
 
-MARKETING & GROWTH (monthly):
-- Marketing Package: from J$30,000/mo â€” social media management, content, SEO, ad strategy.
+AI ADD-ONS (separate monthly services — white-labelled with your brand at setup):
+- AI Chatbot: US$50/mo — lives on your website, answers customer questions 24/7, handles bookings automatically
+- AI Sales Agent: US$50/mo — outbound AI that calls leads and books appointments for you (exactly like this call)
+- Both are SEPARATE services. You can add one or both to any website. NOTE: the AI Sales Agent is also BUNDLED in the Marketing Package — pitch that if they want marketing AND outbound leads together.
 
+MARKETING & GROWTH (monthly -- AI Sales Agent ALWAYS INCLUDED, ALWAYS LEAD WITH IT):
+SETUP TIMELINES: AI Sales Agent live in 3-5 DAYS. Social media starts same week. Email campaigns within 3-4 days. Ads go live within 5-7 days. Everything under 1 week.
+
+ALWAYS OPEN MARKETING PITCH WITH THE AI SALES AGENT:
+"The biggest thing we bring is the AI Sales Bot -- what you are literally on the phone with right now. We set this up for your business in 3 to 5 days. It calls your leads, qualifies them, and books appointments automatically. That is included in every marketing plan."
+
+FULL MARKETING SERVICES:
+- AI Sales Agent (ALWAYS INCLUDED): Outbound AI calling bot. Calls leads, qualifies, books appointments. Setup 3-5 days. Works 24/7.
+- Social Media Management: Instagram + Facebook (all tiers). TikTok at Elite. Weekly reels, graphics, captions, stories.
+- Email Marketing: Campaigns, newsletters, automation flows. Included from Plus tier up.
+- Paid Advertising: Facebook + Instagram ads (all tiers). Google Ads + YouTube Ads from Plus up.
+- SEO + Content: Blog content, landing pages, search visibility. Elite tier.
+- Reporting: Monthly (Starter), bi-weekly (Plus), weekly (Elite).
+
+TIERS:
+- Starter (JA J$30K/mo | US US$500/mo | UK GBP400/mo): IG + FB social, reels + graphics, basic FB/IG ads, monthly report, AI Sales Bot. All live under 1 week.
+- Plus (JA J$55K/mo | US US$1,000/mo | UK GBP800/mo): Starter + email marketing, Google/YouTube ads, 2x content, bi-weekly reporting, account manager.
+- Elite (JA J$80K/mo | US US$2,000/mo | UK GBP1,600/mo): Plus + TikTok, SEO strategy, custom landing pages, weekly reporting, priority support.
+- AI Chatbot add-on: US$50/mo extra. Website inquiries 24/7. ONLY for businesses that already have a website.
+- NOTE: AI Sales Agent standalone = US$50/mo (no marketing). But bundled with ANY marketing tier at no extra charge.
 PAYMENTS ACCEPTED:
-- WiPay (JMD, local): 3.5% + J$130/txn â€” zero monthly fee, all major JA banks
-- Stripe (USD): 2.9% + US$0.30/txn â€” for SaaS and international clients
-- AmberPay (BNPL): split larger invoices into 3 payments â€” great for J$50K+ projects
+- WiPay (JMD, local): 3.5% + J$130/txn — zero monthly fee, all major JA banks
+- Stripe (USD): 2.9% + US$0.30/txn — for SaaS and international clients
+- AmberPay (BNPL): split larger invoices into 3 payments — great for J$50K+ projects
 
 CONTACT:
 - Website: jsupremetech.online
@@ -94,10 +135,10 @@ CONTACT:
 
 const OBJECTION_QUALIFIERS: Record<NonNullable<ObjectionType>, string> = {
   price:     "Is it more about the upfront investment, or is cash flow the thing right now?",
-  timing:    "Understood â€” is timing the main thing, or is there something else you'd want to figure out first?",
-  authority: "Of course â€” is that a partner, or more of a financial decision you'd need to run by someone?",
-  trust:     "That's fair â€” would it help to see some examples of work we've done for businesses like yours?",
-  no_need:   "I hear you â€” is it more that it's not a priority right now, or is the type of service not the right fit?",
+  timing:    "Understood — is timing the main thing, or is there something else you'd want to figure out first?",
+  authority: "Of course — is that a partner, or more of a financial decision you'd need to run by someone?",
+  trust:     "That's fair — would it help to see some examples of work we've done for businesses like yours?",
+  no_need:   "I hear you — is it more that it's not a priority right now, or is the type of service not the right fit?",
 };
 
 type IntentKey = "pricing" | "booking" | "objection" | "pitch_request" | "end_call" | "mockup_request";
@@ -147,7 +188,7 @@ function isFragment(text: string): boolean {
   const trimmed = text.trim();
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length <= 1 && !/\b(yes|yeah|yep|no|nope|ok|okay|sure|bye|good|great|fine|well|hello|hi|hey|alright|thanks|interesting|really|exactly|right|true|agreed|definitely|absolutely|perfect|nice|cool|wow)\b/i.test(trimmed)) return true;
-  if (/[-â€”]{1,2}\s*$/.test(trimmed) || trimmed.length < 3) return true;
+  if (/[-—]{1,2}\s*$/.test(trimmed) || trimmed.length < 3) return true;
   return false;
 }
 
@@ -156,7 +197,31 @@ function isInterruption(text: string): boolean {
 }
 
 function isDncPhrase(text: string): boolean {
-  return /\b(remove me|stop calling|take me off|don.t call|do not call|never call)\b/i.test(text);
+  return /\b(remove me|take me off|stop calling|don.?t call|do not call|never call|unsubscribe|off your list|off the list|no more calls|stop contact|leave me alone|i said no|not interested anymore|never contact)\b/i.test(text);
+}
+
+function isAiQuestion(text: string): boolean {
+  return /\b(are you (a )?(robot|bot|ai|machine|computer|automated|real|human)|is this (a )?(robot|bot|ai|automated|real person)|talking to (a )?(robot|bot|ai|computer)|am i talking to|real person|actual person|are you real|who am i speaking to|is this automated|this (sounds|seem) (like )?(automated|robot|bot))\b/i.test(text);
+}
+
+function isCallBackRequest(text: string): boolean {
+  return /\b(call (me )?(back|later|again|another time|tomorrow|next week|another day)|call back|ring back|call another time|catch me later|bad time|wrong time|not a good time|busy right now|in a meeting|can.?t talk|call me tomorrow|talk later|reach me later|try (me |again )?(later|tomorrow|next week)|try another time)\b/i.test(text);
+}
+
+function isHowDidYouGetNumber(text: string): boolean {
+  return /\b(how (did you|d.?you) (get|find|have|know) (my )?(number|contact|details|info)|where (did you|d.?you) get (my )?(number|contact)|who gave you (my|this) number|where.?d you get this number|how do you have (my )?(number|info|contact))\b/i.test(text);
+}
+
+function isWrongNumber(text: string): boolean {
+  return /\b(wrong number|not my number|wrong person|don.?t know you|who are you|wrong business|not the right number|you have the wrong|this isn.?t|this is not the right)\b/i.test(text);
+}
+
+function isAlreadyHasProvider(text: string): boolean {
+  return /\b(already have (a |an )?(website|site|developer|agency|person|guy|team|company|provider|designer|app)|already (use|using|working with|got|built)|have someone|have a team|have a developer|have a designer|our (website|site|app) is (already|done)|we (built|made|did) (our|the) (site|website|app))\b/i.test(text);
+}
+
+function isSendEmailRequest(text: string): boolean {
+  return /\b(send (me )?(an |the )?(email|info|brochure|details|proposal|pricing)|email (me|us|it|the info|the details|the pricing|a proposal|over|instead)|by email|via email|can you email|prefer email|rather (get|receive|have) (an )?email|shoot me an email|drop me an email|send it (to my email|to my inbox|to email))\b/i.test(text);
 }
 
 async function claudeChat(
@@ -267,7 +332,7 @@ export class Conversation {
 
     if (p.company_name && p.industry) {
       const product = p.recommended_service ?? "a digital solution";
-      return `Hi, is this ${p.company_name}? Great â€” quick question, is now a good time to talk? Perfect. This is Alex calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica â€” I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
+      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? Perfect. This is Alex calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
     }
 
     return `Hi there, this is Alex calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
@@ -275,11 +340,75 @@ export class Conversation {
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
     if (isFragment(userText)) {
-      return { text: "Sorry, I didn't quite catch that â€” could you say that again?", ended: false };
+      return { text: "Sorry, I didn't quite catch that — could you say that again?", ended: false };
     }
 
     if (isInterruption(userText)) {
-      return { text: "Of course â€” go right ahead, I'm listening.", ended: false };
+      return { text: "Of course — go right ahead, I'm listening.", ended: false };
+    }
+
+    // ── AI / robot question ───────────────────────────────────────────────
+    if (isAiQuestion(userText)) {
+      return {
+        text: "Yes — I'm an AI Sales Agent, and actually one of our own products here at J Supreme Tech. This is exactly what we build for businesses like yours — it calls leads automatically, qualifies them, and books appointments. But more importantly, I'm here to see if we can help your business grow. Is now a good time to talk?",
+        ended: false,
+      };
+    }
+
+    // ── How did you get my number ─────────────────────────────────────────
+    if (isHowDidYouGetNumber(userText)) {
+      return {
+        text: "Great question — we research local business directories and listings in the area. Your business came up and we only reach out to business owners, never personal contacts. I won't take much of your time — is now an okay moment to talk?",
+        ended: false,
+      };
+    }
+
+    // ── DNC — hard stop, graceful removal ────────────────────────────────
+    if (isDncPhrase(userText)) {
+      this.dncRequested = true;
+      this.stage = "end";
+      return {
+        text: "Absolutely — I completely understand, and I sincerely apologize for the interruption. I'll make sure your number is removed from our list right away and you will not receive any further calls from us. I hope you have a wonderful rest of your day.",
+        ended: true,
+      };
+    }
+
+    // ── Call-back request — offer a specific time ─────────────────────────
+    if (isCallBackRequest(userText) && this.stage !== "end") {
+      this.stage = "follow_up";
+      return {
+        text: "Of course — no problem at all. When would be a better time for me to reach you? I'm happy to call back tomorrow, later this week, or whenever works best for you.",
+        ended: false,
+      };
+    }
+
+    // ── Wrong number ──────────────────────────────────────────────────────
+    if (isWrongNumber(userText)) {
+      this.stage = "end";
+      return {
+        text: "Oh, I apologize for the confusion — I'll make sure to update our records. Sorry to have bothered you and have a great day!",
+        ended: true,
+      };
+    }
+
+    // ── Already has a website/provider ───────────────────────────────────
+    if (isAlreadyHasProvider(userText) && ["qualify", "pitch", "greeting"].includes(this.stage)) {
+      this.prospect.has_website = true;
+      this.stage = "pitch";
+      return {
+        text: "That's great — actually that puts you ahead already. The businesses really pulling ahead right now are the ones adding a Mobile App and an AI Chatbot on top of their existing site. The chatbot converts visitors 24/7 without you lifting a finger, and the app gives customers a direct line to book or order from their phone. Is that something you'd want to explore for your business?",
+        ended: false,
+      };
+    }
+
+    // ── Prefers email ─────────────────────────────────────────────────────
+    if (isSendEmailRequest(userText) && this.stage !== "end") {
+      this.contact.method = "email";
+      this.stage = "contact_capture";
+      return {
+        text: "Absolutely — what's the best email address to send that to? I'll have our team send over a full breakdown including pricing, portfolio samples, and a summary of what we'd recommend for your business.",
+        ended: false,
+      };
     }
 
     const intent = detectIntent(userText);
@@ -301,8 +430,7 @@ export class Conversation {
 
     if (this.isEndPhrase(userText)) {
       this.stage = "end";
-      if (isDncPhrase(userText)) this.dncRequested = true;
-      return { text: "Understood â€” no problem at all. Have a wonderful day!", ended: true };
+      return { text: "Understood — it was great speaking with you. Have a wonderful day!", ended: true };
     }
 
     this.turnCount++;
@@ -321,7 +449,7 @@ export class Conversation {
     } catch (e: any) {
       if (e.message === "LLM_TIMEOUT") {
         console.error("[LLM] Timeout on turn", this.turnCount);
-        reply = "Give me just one moment â€” could you say that again so I catch it properly?";
+        reply = "Give me just one moment — could you say that again so I catch it properly?";
       } else {
         throw e;
       }
@@ -355,15 +483,21 @@ export class Conversation {
   }
 
   private buildSystem(): string {
-    const identity = `You are Alex, Senior Sales Account Executive at J Supreme Tech â€” a tech company serving Jamaica and the Caribbean.
-You are warm, confident, knowledgeable, and persuasive. Professional Caribbean tone â€” not stiff, not slang.
+        const identity = `You are Alex, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
+You are warm, confident, knowledgeable, and persuasive. Professional Caribbean tone — not stiff, not slang.
+SOUND HUMAN ON THE PHONE:
+- NEVER have dead air or long pauses. Respond quickly and naturally — no silence gaps.
+- Use natural speech fillers when transitioning: 'So', 'Right', 'Actually', 'You know what', 'That's a great point', 'I hear you'.
+- Short affirmations before answering: 'Absolutely', 'Great question', 'Right, so', 'That makes sense'.
+- Sound like a real person, not a robot. Warm, real, Caribbean professional energy.
 PHONE CALL RULES:
 - Every reply must be a COMPLETE thought. Never end mid-sentence.
 - End every turn with a question OR a clear resolved statement.
 - Keep it to 2-3 SHORT sentences max.
-- Never list options with dashes or numbers â€” weave into natural speech.
+- Never list options with dashes or numbers — weave into natural speech.
 - Never sound scripted. Speak like a sharp, warm Caribbean professional.
-- Never trail off with "..." â€” every reply lands with intention.`;
+- Never trail off with '...' — every reply lands with intention.
+WRONG PERSON AT ANY STAGE: If at any point the person says they are not the owner/decision-maker/manager: (1) Brief summary: 'Just so you can pass it along — we help businesses build websites, apps, and social media marketing. Caribbean/JA from J$50,000, US from US$650 — one-time payment.' (2) Ask to transfer: 'Is the owner available now? Even two minutes.' (3) If no transfer: 'Could you give me their direct number or WhatsApp?' (4) If not: 'No worries — they can call back on this same number, or email info@jsupremetech.online. I can also send a one-pager to your WhatsApp to pass along.' NEVER hang up without a path to the decision-maker.`;
 
     const brief = this.buildProspectBrief();
     const stageInstruction = this.buildStageInstruction();
@@ -377,19 +511,23 @@ PHONE CALL RULES:
 
     let gap = p.gap_analysis;
     if (!gap) {
-      if (p.has_website) {
-        gap = "Has a website â€” pitch upgrade: App (J$80K), AI Chatbot add-on (US$50/mo), AI Sales Agent (US$50/mo), or Marketing package (from J$30K/mo). They are leaving money on the table by not converting visitors or reaching new leads automatically.";
+      if (p.has_website && p.has_social) {
+        gap = "Has website AND social media — pitch AI layer: AI Chatbot add-on (US$50/mo converts visitors 24/7), AI Sales Bot outbound (US$50/mo calls leads automatically — like THIS call), or a Custom App (JA J$80K | US US$1,250+). Their foundation is there; the gap is automation and conversion.";
+      } else if (p.has_website) {
+        gap = "Has a website — pitch upgrade stack: App (JA J$80K | US US$1,250+), AI Chatbot add-on (US$50/mo), AI Sales Agent/Bot (bundled into Marketing Package (JA J$30K/mo | US US$500/mo)), or Marketing from J$30K/mo. They are leaving money on the table by not converting visitors or reaching leads automatically.";
+      } else if (p.has_social) {
+        gap = "Active on social but NO website — pitch: Website (JA from J$50K | US from US$650) as the hub that converts social followers into paying customers. Frame: 'Your IG sends people somewhere — right now it's nowhere.' Bundle with Marketing Package at 10% off.";
       } else {
-        gap = "No website â€” pitch: Website from J$50K (delivered in 1 week), or Website + App bundle at 20% off. They are completely invisible online and losing customers to competitors who are.";
+        gap = "No social media presence — PRIME marketing prospect. They are missing the channel where their customers already are. Primary pitch: Marketing Package (JA J$30K/mo | US US$500/mo) (IG + FB management, reels, email, paid ads, AI Sales Bot that calls leads automatically). Also offer Website (JA from J$50K | US from US$650) if they do not have one — both together are the full package. Frame: 'Your competitors are posting every week and running ads. We can have your social presence AND your automated lead outreach live within the week.'"
+        if (!p.recommended_service) (p as any).recommended_service = "marketing";
       }
     }
-
     return `PROSPECT INTEL (pre-call research):
 Company: ${p.company_name ?? "Unknown"}
 Industry: ${p.industry ?? "Unknown"}
-Has website: ${p.has_website ? "YES" : "NO â€” not online at all"}
+Has website: ${p.has_website ? "YES" : "NO — not online at all"}
 Gap identified: ${gap}
-Recommended service: ${p.recommended_service ?? (p.has_website ? "App or AI Chatbot add-on" : "Website from J$50K")}
+Recommended service: ${p.recommended_service ?? (p.has_website ? "App or AI Chatbot add-on" : "Website (JA from J$50K | US from US$650)")}
 Notes: ${p.notes ?? ""}`;
   }
 
@@ -418,18 +556,29 @@ Notes: ${p.notes ?? ""}`;
         }
 
         if (p.company_name && p.industry && p.has_website) {
-          return `${p.company_name} already has a website. DO NOT pitch a basic website. Lead with upgrade angle: "You've already got a site â€” the businesses pulling ahead right now are adding an app and an AI chatbot to convert more visitors and reach leads automatically. Can I show you a FREE visual mockup of what that could look like for ${p.company_name}?"`;
+          return `${p.company_name} already has a website. DO NOT pitch a basic website. Lead with upgrade angle: "You've already got a site — the businesses pulling ahead right now are adding an app and an AI chatbot to convert more visitors and reach leads automatically. Can I show you a FREE visual mockup of what that could look like for ${p.company_name}?"`;
         }
 
         if (p.company_name && p.industry && p.has_website === false) {
-          return `${p.company_name} has NO website â€” completely invisible online. Lead hard: "Right now, customers searching for ${p.industry} businesses in Jamaica can't find ${p.company_name} â€” that's revenue going straight to competitors. We can have your website live in as little as one week from J$50,000. And if you add an app at the same time, you get 20% off both. Can I send you a FREE visual preview of what ${p.company_name}'s site could look like â€” straight to your WhatsApp within 24 hours?"`;
+          return `${p.company_name} has NO website — completely invisible online. MARKET-AWARE PITCH: Use their market field to pick the right price (JA/Caribbean = J$50K, US = US$650, UK = GBP550). Lead: "Right now, customers searching for ${p.industry} businesses can't find ${p.company_name} online — that's revenue going to competitors. We build custom websites from J$50,000 (JA/Caribbean) or US$650 (US/international) — one-time payment, you own it, live in 1 week. Add an app at the same time and get 20% off both. Can I send you a FREE visual preview of what ${p.company_name}'s site could look like — straight to your WhatsApp within 24 hours?"`;
         }
 
         if (p.company_name && p.industry) {
           return `You know ${p.company_name} is a ${p.industry} business. Ask one qualifying question: do they have a website? Then pitch accordingly.`;
         }
 
-        return `Find their pain point in 1-2 exchanges. Ask about their website and how customers find them. Then make one free offer (mockup for website/app, or free trial for SaaS, or free 30-day marketing strategy).`;
+        return `FEATURE REQUESTS — handle naturally:
+SIMPLE/STANDARD features (say YES confidently): QR code booking links, WhatsApp chat button, online booking/scheduling, gallery/photo pages, price lists, Google Maps embed, social media links, menu pages, contact forms, click-to-call buttons, loyalty stamp cards, SMS reminders, event pages, promo banners, product listings.
+CUSTOM/COMPLEX features (say "our team will handle it"): custom integrations, specific POS/accounting connections, advanced automation, custom apps, AI features beyond chatbot.
+EXACT WORDS for simple: "Yes, absolutely — that's standard, we include that."
+EXACT WORDS for complex: "Yes, our developers can look into that and get back to you — we build custom, so nothing is off the table."
+NEVER say "I'm not sure" or "we don't do that" — always find a yes.
+
+WRONG PERSON PROTOCOL — ALWAYS CHECK FIRST: Before deep-pitching, confirm you're speaking to the owner/manager/decision-maker. If they say they're NOT the right person: (1) GIVE A BRIEF SUMMARY FIRST so they can relay it: 'No worries at all — just so you can pass it along: we help businesses build websites, mobile apps, and handle social media marketing. For local Caribbean businesses everything starts from J$50,000. For US and international clients it starts from US$650. A lot of the businesses we work with had zero online presence and we had them live within the week.' (2) THEN ASK FOR TRANSFER: 'Is the owner or manager available right now? I'd love to speak with them directly if they're around — even just for two minutes.' (3) IF NO TRANSFER AVAILABLE: 'Not a problem — could you give me their WhatsApp number or a direct number so I can reach out to them? Or if easier, they can call back on this same number, or reach us at info@jsupremetech.online — whatever works best for them.' (4) IF THEY CAN RELAY: 'That's perfect — would it be okay if I send a one-pager to your WhatsApp right now so you can pass it along? It takes 30 seconds to forward.' PRIORITY ORDER: Transfer now > Get decision-maker's contact > Leave JST contact for them to call back > Send one-pager to relay.
+Find their pain point in 1-2 exchanges. Ask about their website and how customers find them. Then make ONE free offer — pick the most relevant:
+(a) MOCKUP: "Can I send you a FREE visual of what [company]'s website/app could look like — straight to your WhatsApp within 24 hours, no commitment?"
+(b) STRATEGY: "Can I put together a FREE 30-day marketing strategy for [company] — a full plan for your first month: content, ads, everything. I'll send it to your WhatsApp within 24 hours."
+(c) SAAS TRIAL: "We offer a free trial — want me to send you the link to jsupremetech.online/products so you can try it yourself today?" CROSS-SELL RULES: (1) If they say they already have a website -> pivot to App/AI Chatbot/AI Sales Bot. (2) If they say they already do marketing -> pivot to website/app/AI: 'Is your site set up to convert that traffic? An AI Chatbot handles inquiries 24/7.' (3) If they say they don't need marketing -> qualify what they DO need, probe for website/app/automation gaps. (4) If they seem tech-forward -> mention the AI Sales Bot: 'This call you're on right now is actually one of our products — we can set that up for your business too.' NEVER re-pitch something they already told you they have. Always probe first, then pivot.`;
       }
 
       case "mockup_offer":
@@ -438,22 +587,34 @@ Notes: ${p.notes ?? ""}`;
       case "mockup_collect": {
         if (!this.mockup.wa_number) return "Ask for their WhatsApp number to send the mockup to.";
         if (this.mockup.questions_asked === 0) return "Ask: what are your brand colors or color preferences?";
-        if (this.mockup.questions_asked === 1) return "Ask: what style â€” clean and professional, bold and modern, or warm and friendly?";
-        return "You have everything. Confirm you will send the mockup within 24 hours. Then say: 'Before I let you go â€” how would you prefer we follow up with you once the mockup is ready? WhatsApp, email, a call back, or SMS works too.' Wait for their answer.";
+        if (this.mockup.questions_asked === 1) return "Ask: what style — clean and professional, bold and modern, or warm and friendly?";
+        return "You have everything. Confirm you will send the mockup within 24 hours. Then say: 'Before I let you go — how would you prefer we follow up with you once the mockup is ready? WhatsApp, email, a call back, or SMS works too.' Wait for their answer.";
       }
 
       case "contact_capture":
-        return `Ask for their preferred contact method: "Just so someone from our team can follow up with you directly â€” do you prefer WhatsApp, email, a call back, or SMS? And what's the best number or email to reach you?"
-If they already gave a WhatsApp number earlier, confirm it: "We have your WhatsApp at [number] â€” is that still the best one for follow-up?"
-Once you have their method and detail, say: "Perfect â€” someone from the J Supreme Tech team will reach out to you at [their detail] to finalize everything. You're in good hands."
-If they want to buy immediately: "Wonderful â€” someone from our team will reach out to finalize the proposal and get you started right away. You won't need to do anything else on your end."`;
+        return `Ask for their preferred contact method: "Just so someone from our team can follow up with you directly — do you prefer WhatsApp, email, a call back, or SMS? And what's the best number or email to reach you?"
+If they already gave a WhatsApp number earlier, confirm it: "We have your WhatsApp at [number] — is that still the best one for follow-up?"
+Once you have their method and detail, say: "Perfect — someone from the J Supreme Tech team will reach out to you at [their detail] to finalize everything. You're in good hands."
+If they want to buy immediately: "Wonderful — someone from our team will reach out to finalize the proposal and get you started right away. You won't need to do anything else on your end."`;
 
       case "pitch": {
         const p = this.prospect;
-        if (p.has_website) {
-          return `They have a website. Pitch upgrade: App from J$80K, AI Chatbot at US$50/mo, AI Sales Agent US$50/mo. If they need more customers, mention Marketing from J$30K/mo. End with a soft question.`;
+        if (p.recommended_service === "marketing" && p.has_website) {
+          // Inbound marketing inquiry AND they already have a site -- pitch marketing directly
+          return `They contacted us about marketing. Lead with the full package: "Our Marketing Starter at J$30,000/mo covers your Instagram, Facebook, reels, paid ads, email campaigns -- and the AI Sales Bot like this call is included. Everything goes live in under a week." THEN ADD APP UPSELL: "Quick question -- do you have a mobile app for [company name]? If not, we also build apps from J$80,000 ONE-TIME (you own it, no monthly fee, live in 3-4 weeks). A lot of our marketing clients bundle the app with marketing so their customers can book or order straight from their phone. Want to hear more about that?" OFFER HOOK (exact words): "Can I put together a FREE 30-day marketing strategy for [company name] — no commitment, just a full content and ads plan for your first month? I'll send it straight to your WhatsApp within 24 hours."`;
         }
-        return `No website. Pitch: Website from J$50K in as little as 1 week. 20% off doing both website + app together. End with soft question.`;
+        if (p.has_website) {
+          // Has website -- pitch upgrade layer, then soft-close with marketing
+          return `They have a site already -- DO NOT pitch basic website. Lead: "You have your site -- the businesses pulling ahead right now are adding a Mobile App (from J$80,000 ONE-TIME, you own it, live in 3-4 weeks -- that is JA pricing; US starts at US$1,250) or an AI Chatbot (US$50/mo) that converts site visitors 24/7. The app gives your customers a direct line to you on their phone -- bookings, orders, loyalty, all in one place." Then soft close: "We also have a Marketing Package (JA J$30K/mo | US US$500/mo | UK GBP400/mo) -- IG, Facebook, email, paid ads, AND the AI calling bot all in one. A lot of businesses take the App + Marketing together -- that is a full digital stack. Want me to walk you through what that looks like for [company]?" OFFER HOOK — choose one based on what they responded to: (a) "Can I send you a FREE visual mockup of what an app could look like for [company] — straight to your WhatsApp, no commitment?" OR (b) "Can I put together a FREE 30-day marketing strategy for [company] — full plan of what we'd run in your first month, sent to your WhatsApp within 24 hours?"`;
+        }
+        // DEFAULT cold call -- no website: lead with website, close with marketing
+        return `MARKET-AWARE PRICING (auto-apply based on prospect market field):
+- JA + ALL CARIBBEAN ISLANDS (TT, BB, LC, VC, GD, AG, DM, KN, BS, GY, SR): SAME PRICING AS JAMAICA: Website J$50K+ | App J$80K+ | Marketing Starter J$30K/mo | Marketing Plus J$55K/mo | Marketing Elite J$80K/mo. Caribbean clients pay THE SAME as Jamaican clients across ALL services. Quote in J$ or USD equivalent (~US$330 website / ~US$530 app / ~US$200/mo marketing starter) at your discretion.
+- US/Canada leads: Website US$650-1,500 | App US$1,250-2,500 | Marketing US$500-2,000/mo
+- UK leads: Website GBP550-1,200 | App GBP1,000-2,000 | Marketing GBP400-1,600/mo
+- TIME ZONES: JA/TT/BB=EST-1 | US East=EST | US West=PST | UK=GMT
+- For callbacks: always offer a time in THEIR local timezone
+LEAD WITH WEBSITE + ONE-TIME CLARITY: "Right now if someone searches for [their business/industry] in [city/country], they cannot find you -- that is revenue going straight to your competitors. We build custom websites from J$50,000 (JA) | US$650 (US) | GBP550 (UK) -- and this is a ONE-TIME PAYMENT. You own the site outright. No monthly fee for the build itself. Live in as little as one week." SAAS ALTERNATIVE (pitch if they prefer monthly): "If you prefer to pay monthly with no big upfront, we also have a plan built for [their business type] that includes a branded website plus a full business management system -- starting from J$35/mo. Everything included. You can upgrade to a fully custom build later." APP UPSELL: "Whether you go website or monthly plan, we also build Mobile Apps from J$80,000 ONE-TIME (you own it, live in 3-4 weeks). Build the website and app together right now and get 20% off both -- that is the most popular package." SOFT-CLOSE WITH MARKETING: "And to make sure people are actually finding you -- we have a Marketing Package (JA J$30K/mo | US US$500/mo | UK GBP400/mo): Instagram, Facebook, email, paid ads, AND the AI calling bot like this call -- all live within the week." OFFER HOOK: "Can I send you a FREE visual of what your site could look like -- straight to your WhatsApp within 24 hours, no commitment?"`;
       }
 
       case "objection_classify": {
@@ -462,29 +623,57 @@ If they want to buy immediately: "Wonderful â€” someone from our team will 
       }
 
       case "objection_address":
-        return `Address their concern concisely. Then move toward the close.
-- Price: "Our free 3-day trial on the SaaS means zero risk. AmberPay also lets you split a J$50K+ project into 3 payments."
-- Timing: "We start whenever you're ready â€” websites go live in as little as a week."
-- Authority: "No problem â€” I can send a summary you can share with them."
-- Trust: "I can send you examples of similar work via WhatsApp right after this call."
-- No need: "What if there was a way to get more customers without changing much about how you operate?"`;
+        return `Address concern + always try marketing as fallback if website/app rejected.
+PRICE on website/app: "Totally understand - we also have a Marketing Package (JA J$30K/mo | US US$500/mo | UK GBP400/mo): content, paid ads, AND the AI Sales Bot like this call, no big upfront. Would that work?" Pivot to marketing close.
+PRICE on marketing: "Starter is J$30K/mo - IG + Facebook, reels, ads, AI calling bot included. AmberPay splits into 3 payments."
+TIMING: "We start when you are ready - websites live in a week, marketing in 3 days."
+AUTHORITY (wrong person / need to run it by someone): Give a 1-sentence summary first: 'Just so they have context — we help businesses build websites, mobile apps, and handle social media marketing. Caribbean and Jamaica clients start from J$50,000; US/international from US$650. A lot of our clients had zero online presence and we had them live within the week.' Then: (1) 'Are they available right now? I'd love just two minutes with them directly.' If yes: ask to be transferred or get their direct number. If no: (2) 'Could you give me their WhatsApp or a direct number so I can reach out to them personally?' If they can't: (3) 'No worries — they can call back on this same number or email info@jsupremetech.online. Or I can send a quick one-pager to your WhatsApp right now to forward to them — takes 30 seconds.' PRIORITY: Transfer > Get their contact > Leave JST contact > Send one-pager to relay. NEVER just say goodbye without at least getting a path to the decision-maker.
+TRUST: "I can send our portfolio and a client reference via WhatsApp right now."
+NO NEED (website): "Fair - but are customers finding you when they search online? Our Marketing Starter (JA J$30K/mo | US US$500/mo) fixes visibility automatically and includes the AI calling bot."
+NO NEED (marketing): "Got it - is growing your customer base a goal right now?" If yes: pivot to AI Chatbot (if they have a site) or SaaS. If no: offer to send info and schedule follow-up.
+RULE: website/app rejected -> always pitch marketing before ending. Marketing rejected -> schedule follow-up, do not hard close.`;
 
       case "hesitation_close":
-        return `Ask gently: "What's stopping you from moving forward?" Listen and respond.`;
+        return `The prospect is on the fence. Your job here is to remove friction, NOT push harder.
+FIRST — ask ONE gentle question: "Is there anything specific holding you back that I can help clear up?"
+LISTEN. Then respond with exactly ONE of these paths based on what they say:
+- If PRICE: "Totally understood — we can split it into three payments through AmberPay. JA/Caribbean: from J$50K split into 3 = about J$17K now. US: from US$650 split into 3 = about US$217 now. No interest. Would that make it easier?"
+- If TIMING: "That makes complete sense — I don't want to pressure you at all. That's completely fine. Can I follow back up with you in a couple of days just to see where you're at? No pitch, no pressure — just a quick check-in."
+- If AUTHORITY: "Of course — totally reasonable. Quick summary to pass along: websites from J$50K (JA) / US$650 (US/Canada/Australia) / GBP550 (UK) — one-time payment, you own it. Can I send a one-pager to your WhatsApp to share with them?"
+- If TRUST: "That's fair — we'd love to show you some of our work first. Can I send our portfolio to your WhatsApp right now? No obligation."
+- If UNDECIDED / GENERAL: "That's completely fine — there's no rush. Would it be okay if I reached back out in a few days just to see where you're at? Sometimes the timing just isn't right and that's totally okay."
+NEVER hard close here. Offer callback or one-pager as the exit.`;
 
       case "close": {
         const p = this.prospect;
         return `Ask for the commitment: "Shall I send you a proposal today?" or "Want to start your free 3-day trial now?"
-If they say yes or want to move forward immediately: say "Wonderful â€” let me grab the best way to reach you so someone from our team can follow up and finalize everything."
+If they say yes or want to move forward immediately: say "Wonderful — let me grab the best way to reach you so someone from our team can follow up and finalize everything."
 If they hesitate, offer the free hook as fallback:
-- ${p.has_website ? 'Offer: "At minimum, let me send you a FREE visual of what your app or chatbot could look like â€” no cost, no obligation."' : 'Offer: "At minimum, let me send you a FREE visual preview of your website via WhatsApp â€” 24 hours, no obligation."'}`;
+- ${p.has_website ? 'Offer: "At minimum, let me send you a FREE visual of what your app or chatbot could look like — no cost, no obligation."' : 'Offer: "At minimum, let me send you a FREE visual preview of your website via WhatsApp — 24 hours, no obligation."'}`;
       }
 
       case "schedule":
-        return `They said yes and you have their contact. Confirm: "Perfect â€” someone from J Supreme Tech will be in touch at [their contact detail] within 24 hours to go over everything. Is there anything else you'd like to know before we wrap up?"`;
+        return `They said yes and you have their contact. Confirm: "Perfect — someone from J Supreme Tech will be in touch at [their contact detail] within 24 hours to go over everything. Is there anything else you'd like to know before we wrap up?"`;
 
       case "follow_up":
-        return "Wrap up warmly. Thank them for their time. Let them know the team will be in touch soon. End naturally.";
+        return `This stage covers TWO scenarios — read the conversation and pick the right one:
+
+SCENARIO A — They said YES / are booked / gave contact info:
+"Perfect — someone from J Supreme Tech will be in touch shortly. You've made a great decision and we're excited to get started. Have a wonderful day!"
+Wrap up warm and end.
+
+SCENARIO B — They are UNDECIDED / said 'maybe' / asked for time / said they need to think:
+Do NOT push. Say exactly this type of response:
+"That's completely fine — there's absolutely no pressure at all. Would it be okay if I reached back out in a few days just to see where you're at? Sometimes the timing just isn't right and that's 100% okay — I just want to make sure you have the information when you need it."
+Then: "In the meantime, can I send you a quick summary to your WhatsApp — our portfolio, pricing (JA/Caribbean from J$50K | US from US$650 | UK from GBP550), and a few examples? Then if you ever want to move forward, everything's right there."
+Wait. If they say yes to WhatsApp: capture the number and confirm.
+If they decline everything: "Not a problem at all — if you ever want to revisit it, just reach out to us at jsupremetech.online or call (658) 218-2282. Have a wonderful day." End warmly.
+
+MARKET-CORRECT PRICING REMINDER (always use the right currency):
+- Jamaica / Caribbean: J$ pricing
+- US / Canada / Australia: US$ pricing
+- UK: GBP pricing`;
+
 
       case "end":
         return "Thank them genuinely. Wish them well. End naturally.";
@@ -637,6 +826,11 @@ If they hesitate, offer the free hook as fallback:
   getStage(): Stage { return this.stage; }
   isBooked(): boolean { return ["schedule","follow_up"].includes(this.stage); }
   isDncRequested(): boolean { return this.dncRequested; }
+  getProspectData(): ProspectBrief { return this.prospect; }
+  hadMarketingInterest(): boolean {
+    const t = this.getTranscript().toLowerCase();
+    return t.includes('marketing') || t.includes('social media') || t.includes('instagram') || t.includes('facebook') || t.includes('ads') || t.includes('email campaign') || (this.prospect as any).recommended_service === 'marketing';
+  }
 
   async scoreCall(): Promise<CallScores> {
     return scoreTranscript(this.getTranscript());
@@ -671,3 +865,10 @@ If they hesitate, offer the free hook as fallback:
     return conv;
   }
 }
+
+
+
+
+
+
+
