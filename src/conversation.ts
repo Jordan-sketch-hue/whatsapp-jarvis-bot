@@ -396,7 +396,7 @@ export class Conversation {
       this.prospect.has_website = true;
       this.stage = "pitch";
       return {
-        text: "That's great — actually that puts you ahead already. The businesses really pulling ahead right now are the ones adding a Mobile App and an AI Chatbot on top of their existing site. The chatbot converts visitors 24/7 without you lifting a finger, and the app gives customers a direct line to book or order from their phone. Is that something you'd want to explore for your business?",
+        text: "That's great — that actually puts you ahead. The businesses pulling in the most customers right now are the ones adding three things on top of their site: a Mobile App so customers can book or order straight from their phone, an AI Chatbot that handles inquiries and converts visitors 24/7, and a Marketing Package — IG, Facebook, paid ads, and an AI Sales Bot like this call, all bundled together. The Sales Bot alone calls your leads automatically and books appointments for you — that is what you are literally talking to right now. Want me to walk you through what that would look like for your business specifically?",
         ended: false,
       };
     }
