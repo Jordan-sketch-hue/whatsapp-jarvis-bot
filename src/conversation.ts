@@ -141,6 +141,35 @@ const OBJECTION_QUALIFIERS: Record<NonNullable<ObjectionType>, string> = {
   no_need:   "I hear you — is it more that it's not a priority right now, or is the type of service not the right fit?",
 };
 
+// Cialdini-backed objection responses (loss aversion + social proof + ROI anchor)
+export const OBJECTION_RESPONSES: Record<NonNullable<ObjectionType>, { reframe: string; social_proof: string; close: string }> = {
+  price: {
+    reframe: "I get it — it's an investment. Here's how most of our clients think about it: one new customer from the site typically covers a full year of service. The question isn't really 'can I afford this' — it's 'how many customers am I leaving on the table without it.'",
+    social_proof: "A salon owner we worked with in Kingston was hesitant at the same price point. She launched the site and had three new bookings in the first week from people who found her on Google.",
+    close: "Would it help to break the payment into two? Half upfront, half at launch — so there's no big hit on one day.",
+  },
+  timing: {
+    reframe: "Totally understand — but here's the thing: the best time to get visible online is before your slow season, not during it. Websites take a week to build, but they take 30 to 90 days to get found on Google. Waiting means starting from zero later.",
+    social_proof: "Most of the businesses we launch in Q4 say they wish they'd done it six months earlier — by the time they're live, they've already missed bookings they'll never know about.",
+    close: "We can lock your spot on the calendar now and start the build whenever you're ready. No pressure to rush — just don't lose your place in the queue.",
+  },
+  authority: {
+    reframe: "Makes total sense to check with your partner — can I ask, is it more of a budget call or a 'let me explain what this does' conversation? Sometimes it helps to send them a quick breakdown.",
+    social_proof: "I can send over a one-page overview — what we build, what it costs, and what results other businesses in your category have seen. Usually makes the conversation a lot easier on your end.",
+    close: "What's the best way to get that to you — WhatsApp or email?",
+  },
+  trust: {
+    reframe: "Fair — you don't know us yet and you're busy. Here's what I'd suggest: let us send you three live sites we built for businesses just like yours. You see the work, you decide. No commitment.",
+    social_proof: "We've built sites for barbershops in Kingston, salons in Montego Bay, restaurants island-wide. Every one of them is live and ranking. We can send you the links right now.",
+    close: "What's your WhatsApp? I'll drop you three examples in the next ten minutes so you can judge for yourself.",
+  },
+  no_need: {
+    reframe: "I hear that — and I'm not going to push you on something that doesn't fit. But let me ask: are customers finding you online right now, or mostly through word of mouth? Because word of mouth is great — until it's not.",
+    social_proof: "The businesses we work with that said 'we don't need it' — six months later they're asking why they waited. A competitor opened nearby, or a lockdown happened, or the referrals dried up. The website was there when nothing else was.",
+    close: "I'm not saying you need everything we offer. Even just a basic site with your hours, location, and a contact number — that alone changes how customers find you.",
+  },
+};
+
 type IntentKey = "pricing" | "booking" | "objection" | "pitch_request" | "end_call" | "mockup_request";
 
 const INTENT_STAGE_OVERRIDE: Record<IntentKey, Stage> = {
@@ -622,16 +651,23 @@ LEAD WITH WEBSITE + ONE-TIME CLARITY: "Right now if someone searches for [their 
         return `Acknowledge warmly ("That makes sense, I hear you."). Then ask: "${q}"`;
       }
 
-      case "objection_address":
-        return `Address concern + always try marketing as fallback if website/app rejected.
-PRICE on website/app: "Totally understand - we also have a Marketing Package (JA J$30K/mo | US US$500/mo | UK GBP400/mo): content, paid ads, AND the AI Sales Bot like this call, no big upfront. Would that work?" Pivot to marketing close.
-PRICE on marketing: "Starter is J$30K/mo - IG + Facebook, reels, ads, AI calling bot included. AmberPay splits into 3 payments."
-TIMING: "We start when you are ready - websites live in a week, marketing in 3 days."
-AUTHORITY (wrong person / need to run it by someone): Give a 1-sentence summary first: 'Just so they have context — we help businesses build websites, mobile apps, and handle social media marketing. Caribbean and Jamaica clients start from J$50,000; US/international from US$650. A lot of our clients had zero online presence and we had them live within the week.' Then: (1) 'Are they available right now? I'd love just two minutes with them directly.' If yes: ask to be transferred or get their direct number. If no: (2) 'Could you give me their WhatsApp or a direct number so I can reach out to them personally?' If they can't: (3) 'No worries — they can call back on this same number or email info@jsupremetech.online. Or I can send a quick one-pager to your WhatsApp right now to forward to them — takes 30 seconds.' PRIORITY: Transfer > Get their contact > Leave JST contact > Send one-pager to relay. NEVER just say goodbye without at least getting a path to the decision-maker.
-TRUST: "I can send our portfolio and a client reference via WhatsApp right now."
-NO NEED (website): "Fair - but are customers finding you when they search online? Our Marketing Starter (JA J$30K/mo | US US$500/mo) fixes visibility automatically and includes the AI calling bot."
-NO NEED (marketing): "Got it - is growing your customer base a goal right now?" If yes: pivot to AI Chatbot (if they have a site) or SaaS. If no: offer to send info and schedule follow-up.
-RULE: website/app rejected -> always pitch marketing before ending. Marketing rejected -> schedule follow-up, do not hard close.`;
+      case "objection_address": {
+        const objResp = this.objectionType ? OBJECTION_RESPONSES[this.objectionType] : null;
+        const objScript = objResp
+          ? `REFRAME: "${objResp.reframe}" | SOCIAL PROOF: "${objResp.social_proof}" | CLOSE MOVE: "${objResp.close}"`
+          : "";
+        return `Address concern using loss-aversion + social proof + ROI anchoring (Cialdini principles).
+${objScript}
+
+PRICE on website/app: Anchor the ROI first ("one new customer covers a year of service"), then offer payment split. Pivot to Marketing Starter (JA J$30K/mo | US US$500/mo) as no-upfront alternative — includes AI Sales Bot.
+PRICE on marketing: "Starter is J$30K/mo — IG + Facebook, reels, ads, AI calling bot included. AmberPay splits into 3 payments of J$10K."
+TIMING: Use loss framing — "Websites take 30-90 days to rank on Google. Starting now means you're visible when others are still waiting." Lock the calendar spot, start when they're ready.
+AUTHORITY (wrong person): Summary in one sentence → try to transfer NOW → get their direct contact → leave JST contact → send one-pager via WhatsApp. NEVER end the call without a path to the decision-maker.
+TRUST: "Let me send three live sites we built for [their category] businesses right now — judge for yourself. What's your WhatsApp?"
+NO NEED (website): "Are customers finding you on Google right now? Our Marketing Starter (JA J$30K/mo) fixes visibility AND includes the AI calling bot — no website needed."
+NO NEED (marketing): "Got it — is growing your customer base a goal right now?" Probe → pivot to AI Chatbot/SaaS if yes → schedule follow-up if no.
+UPSELL PATH: website rejected → marketing | marketing rejected → AI Bot standalone (US$50/mo) | all rejected → free mockup/one-pager → follow-up scheduled. NEVER end without next step.`;
+      }
 
       case "hesitation_close":
         return `The prospect is on the fence. Your job here is to remove friction, NOT push harder.

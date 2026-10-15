@@ -183,19 +183,73 @@ export interface SalesLead {
   notes?: string;
 }
 
-export async function getNewLeads(limit = 20): Promise<SalesLead[]> {
+export interface LeadFilters {
+  market?: string | null; // null = Jamaica local (market IS NULL); string = intl market code
+  category?: string;
+  tier?: 1 | 2 | 3;
+}
+
+export async function getNewLeads(limit = 20, filters: LeadFilters = {}): Promise<SalesLead[]> {
   try {
+    const params: any[] = [limit];
+    const clauses: string[] = [
+      "sl.status = 'new'",
+      "sl.phone IS NOT NULL",
+      "sl.phone <> ''",
+      "(p.phone IS NULL OR (p.dnc = FALSE AND COALESCE(p.attempt_count, 0) < 3))",
+    ];
+
+    if (filters.market === null) {
+      clauses.push(`sl.market IS NULL`);
+    } else if (filters.market) {
+      params.push(filters.market);
+      clauses.push(`sl.market = $${params.length}`);
+    }
+    if (filters.category) {
+      params.push(filters.category);
+      clauses.push(`sl.category = $${params.length}`);
+    }
+    if (filters.tier) {
+      params.push(`%TIER:${filters.tier}%`);
+      clauses.push(`sl.notes ILIKE $${params.length}`);
+    }
+
     const res = await pool.query(
-      `SELECT sl.id, sl.phone, sl.business_name, sl.category, sl.recommended_product
+      `SELECT sl.id, sl.phone, sl.business_name, sl.category, sl.recommended_product, sl.has_website, sl.notes, sl.market
        FROM sales_leads sl
        LEFT JOIN prospects p ON p.phone = sl.phone
-       WHERE sl.status = 'new'
-         AND sl.phone IS NOT NULL
-         AND sl.phone <> ''
-         AND (p.phone IS NULL OR (p.dnc = FALSE AND COALESCE(p.attempt_count, 0) < 3))
-       ORDER BY sl.created_at ASC
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY
+         -- Category conversion likelihood: owner-operated service businesses close fastest
+         CASE sl.category
+           WHEN 'barbershop'        THEN 0
+           WHEN 'hair_salon'        THEN 0
+           WHEN 'nail_salon'        THEN 0
+           WHEN 'car_detailing'     THEN 0
+           WHEN 'spa'               THEN 1
+           WHEN 'restaurant'        THEN 1
+           WHEN 'bakery'            THEN 1
+           WHEN 'catering'          THEN 1
+           WHEN 'clothing_boutique' THEN 2
+           WHEN 'plumber'           THEN 2
+           WHEN 'electrician'       THEN 2
+           WHEN 'pharmacy'          THEN 2
+           WHEN 'auto_repair'       THEN 2
+           WHEN 'gym'               THEN 3
+           WHEN 'dentist'           THEN 3
+           WHEN 'guest_house'       THEN 3
+           WHEN 'accountant'        THEN 3
+           WHEN 'lawyer'            THEN 3
+           WHEN 'real_estate_agent' THEN 3
+           WHEN 'tour_operator'     THEN 4
+           WHEN 'car_dealership'    THEN 5
+           ELSE 6
+         END,
+         -- Within same category: no-website leads first (cleaner pitch)
+         CASE WHEN sl.has_website = FALSE THEN 0 ELSE 1 END,
+         sl.created_at ASC
        LIMIT $1`,
-      [limit]
+      params
     );
     return res.rows;
   } catch (e: any) {
@@ -330,3 +384,4 @@ export async function logMarketingLead(data: MarketingLead): Promise<void> {
     console.error("[DB] logMarketingLead error:", e.message);
   }
 }
+
