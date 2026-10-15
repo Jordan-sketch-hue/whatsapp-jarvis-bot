@@ -100,6 +100,21 @@ function hasWebsite(tags: Record<string, string>): boolean {
   return !!(tags.website || tags["contact:website"] || tags.url);
 }
 
+const CHAIN_BLOCKLIST = [
+  "mcdonald","subway","kfc","burger king","domino's","pizza hut","wendy's","starbucks",
+  "dunkin","tim hortons","popeyes","chick-fil-a","shake shack","five guys","chipotle",
+  "häagen-dazs","haagen-dazs","baskin-robbins","dairy queen","cold stone","krispy kreme",
+  "burgerfi","salt & straw","taco bell","papa john","island grill","juici patties",
+  "walmart","costco","target","home depot","cvs","walgreens","rite aid",
+  "h&m","zara","gap","coach","louis vuitton","gucci","nike","adidas",
+  "marriott","hilton","hyatt","holiday inn","best western","sheraton","radisson",
+  "hampton inn","courtyard","comfort inn","scotiabank","rbtt","ncb","jn bank",
+];
+function isKnownChain(name: string): boolean {
+  const lower = name.toLowerCase();
+  return CHAIN_BLOCKLIST.some(c => lower.includes(c));
+}
+
 async function scrapeCategory(category: string, location: string, limit: number) {
   const config = OSM_CATEGORY_MAP[category];
   if (!config) { console.error(`Unknown category: ${category}`); return 0; }
@@ -122,6 +137,11 @@ async function scrapeCategory(category: string, location: string, limit: number)
       const tags = el.tags ?? {};
       const phone = buildPhone(tags);
       if (!phone) continue; // skip if no phone — bot can't call them
+      const businessName = tags.name || tags["name:en"] || "";
+      if (isKnownChain(businessName)) continue; // major chain — always has a corporate website
+
+      // Skip Tier 1 leads that already have a website
+      if (config.tier === 1 && hasWebsite(tags)) continue;
 
       const name = tags.name || tags["name:en"] || `[${category} #${el.id}]`;
       const lat = el.lat ?? el.center?.lat;
