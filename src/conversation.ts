@@ -128,6 +128,15 @@ TIERS:
 - Elite (JA J$80K/mo | US US$2,000/mo | UK GBP1,600/mo): Plus + TikTok, SEO strategy, custom landing pages, weekly reporting, priority support.
 - AI Chatbot add-on: US$50/mo extra. Website inquiries 24/7. ONLY for businesses that already have a website.
 - NOTE: AI Sales Agent standalone = US$50/mo (no marketing). But bundled with ANY marketing tier at no extra charge.
+BUNDLE DISCOUNT — LEAD WITH THIS AS YOUR FIRST CLOSING INCENTIVE:
+We currently have up to 50% off when clients bundle services together.
+BUNDLE TIERS:
+- Website + App together: 20% OFF both
+- Website or App + any Marketing Package: AI Sales Bot included FREE (saves US$50/mo)
+- Full stack (Website + App + Marketing + AI Chatbot): up to 50% total savings
+USE THIS WHEN: they ask about pricing, seem hesitant, or want multiple services.
+SCRIPT: "One thing worth knowing: we have up to 50% off when you bundle services together. A website and app built together is 20% off right now. Add a marketing package and the AI Sales Bot — which is literally calling you right now — is included free. Full stack bundles can save you up to 50% total. What were you thinking of starting with?"
+
 LIMITED-TIME OFFER (USE THIS AS A CLOSING INCENTIVE — LOSS AVERSION):
 "Right now, any client who moves forward with a website, app, or marketing package gets the AI Sales Bot — exactly what you're talking to right now — included FREE for the first 3 months. That's a US$150 value. After 3 months it's US$50/mo if you want to keep it. This offer is only running until the end of the month."
 USE THIS WHEN: prospect is hesitating on price, timing, or needs a push. Mention it ONCE as a genuine, time-sensitive incentive. Never offer it twice — it loses its power.
@@ -136,7 +145,6 @@ SCRIPT: "Actually — I should mention, we are running a limited promotion right
 PAYMENTS ACCEPTED:
 - WiPay (JMD, local): 3.5% + J$130/txn — zero monthly fee, all major JA banks
 - Stripe (USD): 2.9% + US$0.30/txn — for SaaS and international clients
-- AmberPay (BNPL): split larger invoices into 3 payments — great for J$50K+ projects
 
 CONTACT:
 - Website: jsupremetech.online
@@ -218,7 +226,7 @@ export const OBJECTION_RESPONSES: Record<NonNullable<ObjectionType>, { reframe: 
   price: {
     reframe: "I get it — it's an investment. Here's how most of our clients think about it: one new customer from the site typically covers a full year of service. The question isn't really 'can I afford this' — it's 'how many customers am I leaving on the table without it.'",
     social_proof: "A salon owner we worked with in Kingston was hesitant at the same price point. She launched the site and had three new bookings in the first week from people who found her on Google.",
-    close: "Would it help to break the payment into two? Half upfront, half at launch — so there's no big hit on one day.",
+    close: "Once you're ready to move forward, we'll send you a payment link directly — takes just a few minutes at jsupremetech.online.",
   },
   timing: {
     reframe: "Totally understand — but here's the thing: the best time to get visible online is before your slow season, not during it. Websites take a week to build, but they take 30 to 90 days to get found on Google. Waiting means starting from zero later.",
@@ -433,10 +441,10 @@ export class Conversation {
 
     if (p.company_name && p.industry) {
       const product = p.recommended_service ?? "a digital solution";
-      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? Perfect. This is Kai calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
+      return `Hi, is this ${p.company_name}? Great — quick one, is now a good time to talk? This is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. I was reaching out to ${p.industry} businesses in Jamaica — I think there's a real opportunity for ${p.company_name}. Do you have about two minutes?`;
     }
 
-    return `Hi there, this is Kai calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
+    return `Hi, this is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
@@ -748,8 +756,8 @@ LEAD WITH WEBSITE + ONE-TIME CLARITY: "Right now if someone searches for [their 
         return `Address concern using loss-aversion + social proof + ROI anchoring (Cialdini principles).
 ${objScript}
 
-PRICE on website/app: Anchor the ROI first ("one new customer covers a year of service"), then offer payment split. Pivot to Marketing Starter (JA J$30K/mo | US US$500/mo) as no-upfront alternative — includes AI Sales Bot.
-PRICE on marketing: "Starter is J$30K/mo — IG + Facebook, reels, ads, AI calling bot included. AmberPay splits into 3 payments of J$10K."
+PRICE on website/app: Anchor the ROI first ("one new customer covers a year of service"). Pivot to Marketing Starter (JA J$30K/mo | US US$500/mo) as a lower-entry alternative — includes AI Sales Bot. When they're ready: "We'll send you a payment link — takes just a few minutes at jsupremetech.online."
+PRICE on marketing: "Starter is J$30K/mo — IG + Facebook, reels, ads, AI calling bot included. When you're ready, we'll send a payment link over — quick and easy at jsupremetech.online."
 TIMING: Use loss framing — "Websites take 30-90 days to rank on Google. Starting now means you're visible when others are still waiting." Lock the calendar spot, start when they're ready.
 AUTHORITY (wrong person): Summary in one sentence → try to transfer NOW → get their direct contact → leave JST contact → send one-pager via WhatsApp. NEVER end the call without a path to the decision-maker.
 TRUST: "Let me send three live sites we built for [their category] businesses right now — judge for yourself. What's your WhatsApp?"
@@ -762,7 +770,7 @@ UPSELL PATH: website rejected → marketing | marketing rejected → AI Bot stan
         return `The prospect is on the fence. Your job here is to remove friction, NOT push harder.
 FIRST — ask ONE gentle question: "Is there anything specific holding you back that I can help clear up?"
 LISTEN. Then respond with exactly ONE of these paths based on what they say:
-- If PRICE: "Totally understood — we can split it into three payments through AmberPay. JA/Caribbean: from J$50K split into 3 = about J$17K now. US: from US$650 split into 3 = about US$217 now. No interest. Would that make it easier?"
+- If PRICE (try bundle angle FIRST): "Actually — one thing that might help: we have up to 50% off on bundle packages right now. A website and app together is 20% off, and adding a marketing package means the AI Sales Bot is included free. The more you combine, the better the deal gets. Does bundling a couple of services make more sense for you?" If still price-sensitive: "When you're ready to move, we'll send you a payment link directly — super quick to complete at jsupremetech.online. No pressure today."
 - If TIMING: "That makes complete sense — I don't want to pressure you at all. That's completely fine. Can I follow back up with you in a couple of days just to see where you're at? No pitch, no pressure — just a quick check-in."
 - If AUTHORITY: "Of course — totally reasonable. Quick summary to pass along: websites from J$50K (JA) / US$650 (US/Canada/Australia) / GBP550 (UK) — one-time payment, you own it. Can I send a one-pager to your WhatsApp to share with them?"
 - If TRUST: "That's fair — we'd love to show you some of our work first. Can I send our portfolio to your WhatsApp right now? No obligation."
@@ -771,7 +779,7 @@ NEVER hard close here. Offer callback or one-pager as the exit.`;
 
       case "close": {
         const p = this.prospect;
-        return `Ask for the commitment: "Shall I send you a proposal today?" or "Want to start your free 3-day trial now?"
+        return `BUNDLE CLOSE (if not yet mentioned this call): "Quick note — we have up to 50% off bundle packages right now. If you're thinking about combining services, doing it together now gets you the best deal." Then: "Shall I send you a proposal today?" or "Want to start your free 3-day trial now?"
 If they say yes or want to move forward immediately: say "Wonderful — let me grab the best way to reach you so someone from our team can follow up and finalize everything."
 If they hesitate, offer the free hook as fallback:
 - ${p.has_website ? 'Offer: "At minimum, let me send you a FREE visual of what your app or chatbot could look like — no cost, no obligation."' : 'Offer: "At minimum, let me send you a FREE visual preview of your website via WhatsApp — 24 hours, no obligation."'}`;
@@ -1047,6 +1055,7 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
     return conv;
   }
 }
+
 
 
 
