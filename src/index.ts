@@ -31,6 +31,7 @@ const server = createServer(app);
 // sessions Map + timestamps for periodic cleanup
 const sessions = new Map<string, Conversation>();
 const sessionTimestamps = new Map<string, number>();
+const callStartTimes = new Map<string, number>();
 
 // Pending LLM responses keyed by callSid - filler plays while these resolve
 const pendingResponses = new Map<string, Promise<{ text: string; ended: boolean }>>();
@@ -56,6 +57,7 @@ async function setSession(callSid: string, conv: Conversation): Promise<void> {
 async function removeSession(callSid: string): Promise<void> {
   sessions.delete(callSid);
   sessionTimestamps.delete(callSid);
+  callStartTimes.delete(callSid);
   await deleteCallSession(callSid);
 }
 
@@ -199,7 +201,13 @@ app.post("/amd-status", validateTwilio, (req, res) => {
   console.log("[AMD] CallSid:", CallSid, "| AnsweredBy:", AnsweredBy);
 
   // If it's a machine/voicemail, play a brief voicemail and hang up
-  if (["machine_start", "machine_end_beep", "machine_end_silence", "fax"].includes(AnsweredBy)) {
+  if (AnsweredBy === "machine_start") {
+    // Machine still connecting - human may pick up after the greeting; let call continue
+    console.log("[AMD] machine_start — passing through, waiting for human pickup");
+    res.sendStatus(200);
+    return;
+  }
+  if (["machine_end_beep", "machine_end_silence", "fax"].includes(AnsweredBy)) {
     const base = process.env.PUBLIC_URL;
     const vm = encodeURIComponent("Hi, this is Kai from J Supreme Tech. We'd love to help grow your business online. Please call us back at 658-218-2282 or visit jsupremetech.online. Have a great day!");
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -339,6 +347,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   sessions.delete(`pending_${to}`);
   sessionTimestamps.delete(`pending_${to}`);
   await setSession(callSid, conv);
+  callStartTimes.set(callSid, Date.now());
 
   // Play greeting first (outside Gather) so Twilio doesn't hear its own audio as speech
   const base = process.env.PUBLIC_URL;
@@ -348,7 +357,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="12">
+          language="en-US" timeout="10">
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`);
@@ -435,7 +444,14 @@ app.post("/respond", validateTwilio, async (req, res) => {
   pendingResponses.delete(callSid);
 
   try {
-    const { text: reply, ended } = await promise;
+    let { text: reply, ended } = await promise;
+    if (!ended) {
+      const startedAt = callStartTimes.get(callSid);
+      if (startedAt !== undefined && Date.now() - startedAt > 150_000) {
+        reply = reply + " I appreciate your time — I'll follow up with more details shortly. Have a great day!";
+        ended = true;
+      }
+    }
     const conv = await getSession(callSid);
     if (!conv) {
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
@@ -477,7 +493,7 @@ app.post("/no-input", validateTwilio, async (req, res) => {
 
   conv.silenceStreak = (conv.silenceStreak ?? 0) + 1;
 
-  if (conv.silenceStreak < 3) {
+  if (conv.silenceStreak < 2) {
     const nudge = conv.silenceStreak === 1
       ? "Sorry, I didn't catch that - could you say that again?"
       : "Still there? Take your time, I'm listening.";
@@ -667,7 +683,7 @@ function buildGather(say: string, stage?: string) {
   <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="12">
+          language="en-US" timeout="10">
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
@@ -795,6 +811,8 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
+
 
 
 
