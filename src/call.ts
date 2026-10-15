@@ -2,6 +2,7 @@
 
 export async function initiateCall(to: string): Promise<string> {
   const apiKey = process.env.TELNYX_API_KEY!;
+  const orgId = process.env.TELNYX_ORG_ID!;
   const from = process.env.FROM_NUMBER!;
   const base = process.env.PUBLIC_URL!;
   const appSid = process.env.TELNYX_APP_SID!;
@@ -10,19 +11,18 @@ export async function initiateCall(to: string): Promise<string> {
     To: to,
     From: from,
     ApplicationSid: appSid,
-    Url: `${base}/twiml`,
     StatusCallback: `${base}/call-status`,
     StatusCallbackMethod: "POST",
     MachineDetection: "Enable",
-    AsyncAmd: true,
+    AsyncAmd: "true",
     AsyncAmdStatusCallback: `${base}/amd-status`,
     AsyncAmdStatusCallbackMethod: "POST",
-    Record: true,
+    Record: "true",
     RecordingChannels: "dual",
   };
 
   const res = await fetch(
-    `https://api.telnyx.com/v2/texml/Accounts/${apiKey}/Calls`,
+    `https://api.telnyx.com/v2/texml/Accounts/${orgId}/Calls`,
     {
       method: "POST",
       headers: {
@@ -37,9 +37,9 @@ export async function initiateCall(to: string): Promise<string> {
   console.log("[CALL] Telnyx HTTP", res.status, "response:", rawText.slice(0, 500));
   const data = JSON.parse(rawText) as any;
   if (!res.ok) {
-    const msg = data?.message ?? data?.errors?.[0]?.detail ?? rawText;
-    const code = data?.code ?? data?.errors?.[0]?.code ?? res.status;
+    const msg = data?.errors?.[0]?.detail ?? data?.message ?? rawText;
+    const code = data?.telnyx_error?.error_code ?? data?.errors?.[0]?.code ?? res.status;
     throw new Error(`[${code}] ${msg}`);
   }
-  return data.sid ?? data.call_sid ?? data.to ?? "queued";
+  return data.call_control_id ?? data.to ?? "queued";
 }
