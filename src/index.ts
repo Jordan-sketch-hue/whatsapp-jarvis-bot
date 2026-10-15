@@ -201,7 +201,7 @@ app.post("/amd-status", validateTwilio, (req, res) => {
   // If it's a machine/voicemail, play a brief voicemail and hang up
   if (["machine_start", "machine_end_beep", "machine_end_silence", "fax"].includes(AnsweredBy)) {
     const base = process.env.PUBLIC_URL;
-    const vm = encodeURIComponent("Hi, this is Aria from J Supreme Tech. We'd love to help grow your business online. Please call us back at 658-218-2282 or visit jsupremetech.online. Have a great day!");
+    const vm = encodeURIComponent("Hi, this is Kai from J Supreme Tech. We'd love to help grow your business online. Please call us back at 658-218-2282 or visit jsupremetech.online. Have a great day!");
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Play>${base}/tts?text=${vm}</Play>
@@ -596,7 +596,7 @@ async function notifyJordan(data: {
     : "Scores: pending";
 
   const message = [
-    `*Aria Call Ended*`,
+    `*Kai Call Ended*`,
     `Number: ${data.toNumber}`,
     `Stage reached: ${data.stage}`,
     `Booked: ${data.booked ? "YES" : "NO"}`,
@@ -794,7 +794,10 @@ app.get("/health", (_, res) => res.json({
 }));
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Aria AI Sales Bot running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
+
+
 
 
 
