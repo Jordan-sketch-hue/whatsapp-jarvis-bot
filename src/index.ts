@@ -401,7 +401,9 @@ app.post("/gather", validateTwilio, async (req, res) => {
 
   const base2 = process.env.PUBLIC_URL;
   if (!speechResult || speechResult.trim() === "") {
-    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
+    // Telnyx fires an empty gather almost immediately at call connect (before the caller speaks).
+    // Silently re-open gather — no audio — so the greeting isn't interrupted.
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="15"></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
     return;
   }
   if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {

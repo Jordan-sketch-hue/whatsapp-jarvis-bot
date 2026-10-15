@@ -288,7 +288,7 @@ function detectIntent(text: string): IntentKey | null {
 function isFragment(text: string): boolean {
   const trimmed = text.trim();
   const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length <= 1 && !/\b(yes|yeah|yep|no|nope|ok|okay|sure|bye|good|great|fine|well|hello|hi|hey|alright|thanks|interesting|really|exactly|right|true|agreed|definitely|absolutely|perfect|nice|cool|wow)\b/i.test(trimmed)) return true;
+  if (words.length <= 1 && !/\b(yes|yeah|yep|no|nope|ok|okay|sure|bye|good|great|fine|well|hello|hi|hey|alright|thanks|interesting|really|exactly|right|true|agreed|definitely|absolutely|perfect|nice|cool|wow|what|huh|pardon|who|when|where|how|why|uh|um|ah|oh|hmm|yep|nah|wait|hold)\b/i.test(trimmed)) return true;
   if (/[-—]{1,2}\s*$/.test(trimmed) || trimmed.length < 3) return true;
   return false;
 }
