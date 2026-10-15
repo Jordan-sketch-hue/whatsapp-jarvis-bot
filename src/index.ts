@@ -4,9 +4,24 @@ import { createServer } from "http";
 import twilio from "twilio";
 import { Pool } from "pg";
 import { runAll } from "./scraper";
+import { runAllIntlMarkets } from "./scraper-intl";
 import { Conversation } from "./conversation";
-import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead } from "./db";
+import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead, getSiblingLeads, type LeadFilters } from "./db";
 import { initiateCall } from "./call";
+
+// Normalize any JA/US number to E.164.
+// 876-xxx-xxxx, 658-xxx-xxxx, (876) xxx-xxxx, +1876… all → +1XXXXXXXXXX
+// Other countries: strip spaces/dashes, ensure leading +
+function toE164(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  // NANP Jamaica/US: 10 digits or 11 starting with 1
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  // Already has country code (>11 digits) — just ensure + prefix
+  if (digits.length > 11) return `+${digits}`;
+  // fallback: return raw if we can't confidently normalize
+  return raw.startsWith("+") ? raw : `+${digits}`;
+}
 
 const app = express();
 app.use(express.json());
@@ -236,7 +251,7 @@ app.post("/call", async (req, res) => {
   }
 
   try {
-    const call_sid = await initiateCall(to);
+    const call_sid = await initiateCall(toE164(to));
     const conv = new Conversation(
       await getProspect(to) ?? { company_name, industry }
     );
@@ -254,13 +269,19 @@ app.post("/call-leads", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
 
-  const { limit = 10, bypass_hours } = req.body;
+  const { limit = 10, bypass_hours, market, category, tier } = req.body;
 
   if (!bypass_hours && !isWithinBusinessHours()) {
     return res.status(400).json({ error: "Outside business hours" });
   }
 
-  const leads = await getNewLeads(Math.min(limit, 50));
+  const filters: LeadFilters = {};
+  if (market === null) filters.market = null;           // null = Jamaica local (IS NULL)
+  else if (market)     filters.market = String(market); // string = specific intl market
+  if (category) filters.category = String(category);
+  if (tier)     filters.tier     = parseInt(String(tier)) as 1 | 2 | 3;
+
+  const leads = await getNewLeads(Math.min(limit, 50), filters);
   if (!leads.length) return res.json({ queued: 0, message: "No new leads" });
 
   const results: { phone: string; status: string; call_sid?: string }[] = [];
@@ -276,13 +297,20 @@ app.post("/call-leads", async (req, res) => {
       const attempts = await getAttemptCount(lead.phone);
       if (attempts >= 3) { results.push({ phone: lead.phone, status: "skipped_max_attempts" }); continue; }
 
-      const call_sid = await initiateCall(lead.phone);
+      const call_sid = await initiateCall(toE164(lead.phone));
+      const siblings = await getSiblingLeads(lead.phone, lead.id);
       const conv = new Conversation({
         company_name: lead.business_name,
         industry: lead.category,
         has_website: lead.has_website,
         recommended_service: lead.recommended_product,
         notes: lead.notes,
+        sibling_businesses: siblings.length ? siblings.map(s => ({
+          company_name: s.business_name,
+          category: s.category,
+          has_website: s.has_website,
+          recommended_product: s.recommended_product,
+        })) : undefined,
       });
       sessions.set(`pending_${lead.phone}`, conv);
       sessionTimestamps.set(`pending_${lead.phone}`, Date.now());
@@ -317,7 +345,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   const greeting = encodeURIComponent(conv.getGreeting());
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${base}/tts?text=${greeting}&amp;stage=greeting</Play>
+  <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
           language="en-US" timeout="12">
@@ -387,7 +415,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const filler = fillers[Math.floor(Math.random() * fillers.length)];
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">${filler}</Say>
+  <Say voice="Polly.Matthew">${filler}</Say>
   <Redirect method="POST">${base}/respond?callSid=${encodeURIComponent(callSid)}</Redirect>
 </Response>`);
 });
@@ -579,15 +607,53 @@ async function notifyJordan(data: {
     `Next: ${data.nextAction}`,
   ].filter(Boolean).join("\n");
 
-  try {
-    await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
-    });
-  } catch (e: any) {
-    console.error("[NOTIFY] WhatsApp notify failed:", e.message);
+  const sends: Promise<any>[] = [];
+
+  // Jarvis WA bot (Baileys — same Railway project, auto-injected URL)
+  const jarvisWaUrl = process.env.RAILWAY_SERVICE_WHATSAPP_JARVIS_BOT_URL;
+  const waSendSecret = process.env.WA_SEND_SECRET;
+  const jordanJid = process.env.JORDAN_WA_NUMBER; // e.g. "16582182282" (digits only)
+  if (jarvisWaUrl && waSendSecret && jordanJid) {
+    sends.push(
+      fetch(`${jarvisWaUrl}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-send-secret": waSendSecret },
+        body: JSON.stringify({ jid: jordanJid, text: message }),
+      }).catch((e: any) => console.error("[NOTIFY] Jarvis WA send failed:", e.message))
+    );
+  } else if (webhookUrl) {
+    // fallback: legacy webhook
+    sends.push(
+      fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      }).catch((e: any) => console.error("[NOTIFY] WhatsApp notify failed:", e.message))
+    );
   }
+
+  // Email alert on hot leads (booked or mockup requested)
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey && (data.booked || data.mockup.requested)) {
+    const subject = data.booked
+      ? `HOT LEAD — ${data.toNumber} booked a follow-up`
+      : `Mockup Requested — ${data.toNumber}`;
+    const html = `<pre style="font-family:monospace;font-size:14px">${message.replace(/\*/g, "")}</pre>`;
+    sends.push(
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "Sales Bot <sales@jsupremetech.online>",
+          to: ["jordanmorris@jsupremetech.online"],
+          subject,
+          html,
+        }),
+      }).catch((e: any) => console.error("[NOTIFY] Resend email failed:", e.message))
+    );
+  }
+
+  await Promise.allSettled(sends);
 }
 
 // â"€â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -615,7 +681,17 @@ app.post("/scrape", async (req, res) => {
 
   const { limit } = req.body as { limit?: string };
   runAll(limit ? parseInt(limit) : 30).catch((e: unknown) => console.error("[SCRAPE]", (e as Error).message));
-  res.json({ started: true, message: "Scraper running in background - check /leads for new data" });
+  res.json({ started: true, message: "Jamaica scraper running in background" });
+});
+
+// ─── Scrape international leads (Miami, Atlanta, NYC etc.) ───────────────────
+app.post("/scrape-intl", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: "unauthorized" });
+
+  const { limit } = req.body as { limit?: number };
+  runAllIntlMarkets(limit ?? 40).catch((e: unknown) => console.error("[SCRAPE-INTL]", (e as Error).message));
+  res.json({ started: true, message: "International scraper running — Miami, Atlanta, NYC etc. No-website businesses only." });
 });
 
 // â"€â"€â"€ List leads with stats â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -641,6 +717,74 @@ app.get("/leads", async (req, res) => {
   }
 });
 
+// ── Call logs: full outcome history ──────────────────────────────────────────
+app.get("/call-logs", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: "unauthorized" });
+
+  const limit = Math.min(parseInt(String(req.query.limit ?? "200")), 500);
+  const dbPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL?.includes("supabase.co") ? { rejectUnauthorized: false } : undefined,
+  });
+
+  try {
+    const r = await dbPool.query(`
+      SELECT
+        cl.call_sid, cl.to_number, cl.company_name, cl.industry,
+        cl.duration_seconds, cl.outcome, cl.transcript,
+        cl.booked_followup, cl.stage_reached, cl.scores,
+        cl.mockup_requested, cl.mockup_wa_number,
+        cl.next_action, cl.contact_method, cl.contact_detail,
+        cl.created_at,
+        ml.interest_level, ml.interested_tier, ml.interested_services,
+        sl.business_name AS lead_name, sl.recommended_product, sl.market
+      FROM call_logs cl
+      LEFT JOIN marketing_leads ml ON ml.phone = cl.to_number
+      LEFT JOIN sales_leads sl ON sl.phone = cl.to_number
+      ORDER BY cl.created_at DESC
+      LIMIT $1
+    `, [limit]);
+    res.json({ call_logs: r.rows });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  } finally {
+    await dbPool.end();
+  }
+});
+
+// ── Follow-ups: hot/warm leads from marketing_leads ──────────────────────────
+app.get("/follow-ups", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: "unauthorized" });
+
+  const dbPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL?.includes("supabase.co") ? { rejectUnauthorized: false } : undefined,
+  });
+
+  try {
+    const r = await dbPool.query(`
+      SELECT ml.phone, ml.business_name, ml.industry, ml.interest_level,
+             ml.interested_services, ml.contact_method, ml.contact_detail,
+             ml.notes, ml.created_at,
+             cs.stage_reached, cs.booked_followup, cs.mockup_requested,
+             cs.mockup_wa_number, cs.next_action, cs.call_sid,
+             cs.interested_tier
+      FROM marketing_leads ml
+      LEFT JOIN call_sessions cs ON cs.to_number = ml.phone
+      ORDER BY CASE ml.interest_level WHEN 'hot' THEN 1 WHEN 'warm' THEN 2 ELSE 3 END,
+               ml.created_at DESC
+      LIMIT 200
+    `);
+    res.json({ follow_ups: r.rows });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  } finally {
+    await dbPool.end();
+  }
+});
+
 app.get("/health", (_, res) => res.json({
   status: "ok",
   sessions: sessions.size,
@@ -651,5 +795,8 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Aria AI Sales Bot running on port ${PORT}`));
+
+
+
 
 

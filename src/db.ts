@@ -259,6 +259,26 @@ export async function getNewLeads(limit = 20, filters: LeadFilters = {}): Promis
   }
 }
 
+export interface SiblingLead {
+  business_name: string;
+  category: string;
+  has_website: boolean;
+  recommended_product: string;
+}
+
+export async function getSiblingLeads(phone: string, excludeId: number): Promise<SiblingLead[]> {
+  try {
+    const res = await pool.query(
+      `SELECT business_name, category, has_website, recommended_product
+       FROM sales_leads
+       WHERE phone = $1 AND id != $2
+       LIMIT 5`,
+      [phone, excludeId]
+    );
+    return res.rows;
+  } catch { return []; }
+}
+
 export async function markLeadCalled(id: number) {
   try {
     await pool.query("UPDATE sales_leads SET status='called', called_at=NOW() WHERE id=$1", [id]);

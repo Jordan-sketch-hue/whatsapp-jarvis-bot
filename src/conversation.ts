@@ -52,6 +52,12 @@ export interface ProspectBrief {
   inbound?: boolean;
   previous_stage?: string;
   previous_interest?: string;
+  sibling_businesses?: Array<{
+    company_name: string;
+    category: string;
+    has_website: boolean;
+    recommended_product?: string;
+  }>;
 }
 
 const CATEGORY_INTEL: Record<string, { angle: string; competitor_context: string; best_product: string }> = {
@@ -556,13 +562,28 @@ WRONG PERSON AT ANY STAGE: If at any point the person says they are not the owne
         if (!p.recommended_service) (p as any).recommended_service = "marketing";
       }
     }
-    return `PROSPECT INTEL (pre-call research):
+    let brief = `PROSPECT INTEL (pre-call research):
 Company: ${p.company_name ?? "Unknown"}
 Industry: ${p.industry ?? "Unknown"}
 Has website: ${p.has_website ? "YES" : "NO — not online at all"}
 Gap identified: ${gap}
 Recommended service: ${p.recommended_service ?? (p.has_website ? "App or AI Chatbot add-on" : "Website (JA from J$50K | US from US$650)")}
 Notes: ${p.notes ?? ""}`;
+
+    if (p.sibling_businesses && p.sibling_businesses.length > 0) {
+      const siblingLines = p.sibling_businesses.map(s =>
+        `  - ${s.company_name} (${s.category.replace(/_/g, " ")}) — ${s.has_website ? "has website" : "NO website"} — ${s.recommended_product ?? "needs full pitch"}`
+      ).join("\n");
+      brief += `
+
+MULTI-BUSINESS OPPORTUNITY — THIS OWNER RUNS ${p.sibling_businesses.length + 1} BUSINESSES:
+${siblingLines}
+BUNDLE PITCH STRATEGY: After you establish interest in ${p.company_name ?? "their primary business"}, say:
+"Actually — I also see you have [other business name] on our list. Is that yours too? We do bundle pricing when you come on for more than one business — could save you significantly. Want me to run the numbers on both?"
+NEVER bring up sibling businesses at the start — qualify the first one first, then layer the bundle once interest is confirmed. Each additional business = higher deal value. Always close on the bundle.`;
+    }
+
+    return brief;
   }
 
   private buildStageInstruction(): string {
