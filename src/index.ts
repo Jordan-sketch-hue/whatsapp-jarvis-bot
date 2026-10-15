@@ -401,11 +401,15 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const confidence = parseFloat(req.body.Confidence ?? "1");
   console.log("[GATHER] CallSid:", callSid, "| Confidence:", confidence.toFixed(2), "| Speech:", speechResult.slice(0, 80));
 
-  if (confidence < 0.5 && speechResult) {
-    res.type("text/xml").send(buildGather("Sorry, I didn't catch that clearly - could you say that one more time?"));
+  const base2 = process.env.PUBLIC_URL;
+  if (!speechResult || speechResult.trim() === "") {
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
     return;
   }
-
+  if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
+    res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?"));
+    return;
+  }
   let conv = await getSession(callSid);
   if (!conv) {
     conv = new Conversation();
@@ -592,6 +596,32 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
         contact_detail: contact?.detail,
         notes: p.notes,
       });
+    }
+    // Sync to Supabase sales_calls so the conglomerate dashboard shows this call
+    const supaUrl = process.env.SUPABASE_URL;
+    const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (supaUrl && supaKey) {
+      const p = conv.getProspectData();
+      fetch(`${supaUrl}/rest/v1/sales_calls`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supaKey,
+          "Authorization": `Bearer ${supaKey}`,
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({
+          call_sid: callSid,
+          to_number: toNumber,
+          lead_name: p?.company_name ?? null,
+          lead_business: p?.company_name ?? null,
+          duration_seconds: duration,
+          outcome: "answered",
+          transcript,
+          booked_followup: booked,
+          notes: nextAction,
+        }),
+      }).catch((e: any) => console.error("[FINAL] Supabase sync error:", e.message));
     }
     await notifyJordan({ callSid, toNumber, stage, booked, scores, mockup, contact, nextAction, transcript });
     console.log("[FINAL] Logged & notified. Stage:", stage, "| Mockup:", mockup.requested, "| DNC:", conv.isDncRequested());
@@ -811,6 +841,9 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
+
+
 
 
 
