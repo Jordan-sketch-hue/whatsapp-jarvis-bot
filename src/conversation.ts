@@ -122,6 +122,11 @@ TIERS:
 - Elite (JA J$80K/mo | US US$2,000/mo | UK GBP1,600/mo): Plus + TikTok, SEO strategy, custom landing pages, weekly reporting, priority support.
 - AI Chatbot add-on: US$50/mo extra. Website inquiries 24/7. ONLY for businesses that already have a website.
 - NOTE: AI Sales Agent standalone = US$50/mo (no marketing). But bundled with ANY marketing tier at no extra charge.
+LIMITED-TIME OFFER (USE THIS AS A CLOSING INCENTIVE — LOSS AVERSION):
+"Right now, any client who moves forward with a website, app, or marketing package gets the AI Sales Bot — exactly what you're talking to right now — included FREE for the first 3 months. That's a US$150 value. After 3 months it's US$50/mo if you want to keep it. This offer is only running until the end of the month."
+USE THIS WHEN: prospect is hesitating on price, timing, or needs a push. Mention it ONCE as a genuine, time-sensitive incentive. Never offer it twice — it loses its power.
+SCRIPT: "Actually — I should mention, we are running a limited promotion right now. Anyone who gets started with us this month gets the AI Sales Bot included FREE for 3 months. That is the same system you are talking to right now, calling your leads automatically. After 3 months, it is US$50/mo — but right now it is yours free when you move forward. That offer closes at the end of the month."
+
 PAYMENTS ACCEPTED:
 - WiPay (JMD, local): 3.5% + J$130/txn — zero monthly fee, all major JA banks
 - Stripe (USD): 2.9% + US$0.30/txn — for SaaS and international clients
@@ -300,8 +305,8 @@ export async function scoreTranscript(transcript: string): Promise<CallScores> {
 
   const prompt = `Score this sales call on 5 dimensions (0-10 each). Return ONLY valid JSON, no other text.
 - interest: Did the prospect stay engaged?
-- usefulness: Did Alex deliver real value beyond just pitching?
-- resourcefulness: Did Alex handle unexpected questions well?
+- usefulness: Did Kai deliver real value beyond just pitching?
+- resourcefulness: Did Kai handle unexpected questions well?
 - emotional_resonance: Was the tone warm, confident, locally relevant?
 - success: Did the call end with a close, booking, or mockup YES?
 
@@ -361,10 +366,10 @@ export class Conversation {
 
     if (p.company_name && p.industry) {
       const product = p.recommended_service ?? "a digital solution";
-      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? Perfect. This is Alex calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
+      return `Hi, is this ${p.company_name}? Great — quick question, is now a good time to talk? Perfect. This is Kai calling from J Supreme Tech. I was reaching out to ${p.industry} businesses in Jamaica — I think we have something that could really help ${p.company_name}. Do you have about two minutes?`;
     }
 
-    return `Hi there, this is Alex calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
+    return `Hi there, this is Kai calling from J Supreme Tech. Just so you know, this call may be recorded. How are you doing today?`;
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
@@ -512,7 +517,7 @@ export class Conversation {
   }
 
   private buildSystem(): string {
-        const identity = `You are Alex, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
+        const identity = `You are Kai, Senior Sales Account Executive at J Supreme Tech — a tech company serving Jamaica and the Caribbean.
 You are warm, confident, knowledgeable, and persuasive. Professional Caribbean tone — not stiff, not slang.
 SOUND HUMAN ON THE PHONE:
 - NEVER have dead air or long pauses. Respond quickly and naturally — no silence gaps.
@@ -712,7 +717,8 @@ MARKET-CORRECT PRICING REMINDER (always use the right currency):
 
 
       case "end":
-        return "Thank them genuinely. Wish them well. End naturally.";
+        return `Thank them genuinely. Wish them well. End naturally.
+BEFORE ending, confirm product direction internally so the follow-up team knows exactly what was discussed. You do NOT say this aloud — it is for the record. The product direction is captured by the system automatically.`;
 
       default:
         return "Continue the conversation naturally toward a close or a free mockup agreement.";
@@ -863,6 +869,62 @@ MARKET-CORRECT PRICING REMINDER (always use the right currency):
   isBooked(): boolean { return ["schedule","follow_up"].includes(this.stage); }
   isDncRequested(): boolean { return this.dncRequested; }
   getProspectData(): ProspectBrief { return this.prospect; }
+  getProductDirection(): {
+    product: string;
+    tier: string | null;
+    next_action: string;
+    price_discussed: string | null;
+  } {
+    const t = this.getTranscript().toLowerCase();
+    const p = this.prospect;
+
+    // Determine primary product from conversation signals
+    let product = "unknown";
+    let tier: string | null = null;
+    let price_discussed: string | null = null;
+    let next_action = "follow_up_call";
+
+    if (t.includes("saas") || t.includes("glowdesk") || t.includes("tableflow") || t.includes("fleetrun") || t.includes("tourbase") || t.includes("enrolliq") || t.includes("dwelldesk") || t.includes("punchpro")) {
+      product = "saas_subscription";
+      tier = "monthly";
+    } else if (t.includes("mobile app") || t.includes("app bundle") || t.includes("j$80") || t.includes("80,000") || t.includes("us$1,250")) {
+      product = "mobile_app";
+      price_discussed = p.industry?.match(/^(US|UK|GB)/) ? "US$1,250+" : "J$80,000+";
+    } else if (t.includes("website") && !t.includes("already have") && !p.has_website) {
+      product = "website";
+      price_discussed = "J$50,000+";
+    } else if (t.includes("marketing") || t.includes("instagram") || t.includes("facebook") || t.includes("social media") || t.includes("ads")) {
+      product = "marketing_package";
+      if (t.includes("elite")) { tier = "elite"; price_discussed = "J$80,000/mo"; }
+      else if (t.includes("plus")) { tier = "plus"; price_discussed = "J$55,000/mo"; }
+      else { tier = "starter"; price_discussed = "J$30,000/mo"; }
+    } else if (t.includes("ai chatbot") || t.includes("chatbot")) {
+      product = "ai_chatbot";
+      price_discussed = "US$50/mo";
+    } else if (t.includes("ai sales") || t.includes("sales bot") || t.includes("ai agent")) {
+      product = "ai_sales_bot";
+      price_discussed = "US$50/mo";
+    } else if (p.has_website) {
+      product = "marketing_or_app_upsell";
+    } else {
+      product = "website";
+      price_discussed = "J$50,000+";
+    }
+
+    // Determine next action
+    if (this.isBooked() || this.contact.captured) {
+      next_action = "send_proposal";
+    } else if (this.mockup.requested) {
+      next_action = "send_mockup_to_wa";
+    } else if (this.dncRequested) {
+      next_action = "dnc_remove";
+    } else {
+      next_action = "follow_up_call";
+    }
+
+    return { product, tier, next_action, price_discussed };
+  }
+
   hadMarketingInterest(): boolean {
     const t = this.getTranscript().toLowerCase();
     return t.includes('marketing') || t.includes('social media') || t.includes('instagram') || t.includes('facebook') || t.includes('ads') || t.includes('email campaign') || (this.prospect as any).recommended_service === 'marketing';

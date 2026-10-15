@@ -196,6 +196,7 @@ export async function getNewLeads(limit = 20, filters: LeadFilters = {}): Promis
       "sl.status = 'new'",
       "sl.phone IS NOT NULL",
       "sl.phone <> ''",
+      "sl.phone NOT LIKE '000-%'",
       "(p.phone IS NULL OR (p.dnc = FALSE AND COALESCE(p.attempt_count, 0) < 3))",
     ];
 
