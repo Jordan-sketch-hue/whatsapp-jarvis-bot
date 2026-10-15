@@ -349,15 +349,13 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   await setSession(callSid, conv);
   callStartTimes.set(callSid, Date.now());
 
-  // Play greeting first (outside Gather) so Twilio doesn't hear its own audio as speech
   const base = process.env.PUBLIC_URL;
-  const greeting = encodeURIComponent(conv.getGreeting());
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
           language="en-US" timeout="10">
+    <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`);
@@ -707,13 +705,12 @@ function buildGather(say: string, stage?: string) {
   const base = process.env.PUBLIC_URL;
   const encoded = encodeURIComponent(say);
   const stageParam = stage ? `&amp;stage=${encodeURIComponent(stage)}` : "";
-  // Play BEFORE Gather so Twilio doesn't pick up its own TTS as speech input
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
           language="en-US" timeout="10">
+    <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
