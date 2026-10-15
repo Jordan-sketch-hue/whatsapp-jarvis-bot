@@ -1,33 +1,35 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 
 export async function initiateCall(to: string): Promise<string> {
   const apiKey = process.env.TELNYX_API_KEY!;
   const from = process.env.FROM_NUMBER!;
   const base = process.env.PUBLIC_URL!;
+  const appSid = process.env.TELNYX_APP_SID!;
 
-  const params: Record<string, string> = {
+  const body = {
     To: to,
     From: from,
+    ApplicationSid: appSid,
     Url: `${base}/twiml`,
     StatusCallback: `${base}/call-status`,
     StatusCallbackMethod: "POST",
     MachineDetection: "Enable",
-    AsyncAmd: "true",
+    AsyncAmd: true,
     AsyncAmdStatusCallback: `${base}/amd-status`,
     AsyncAmdStatusCallbackMethod: "POST",
-    Record: "true",
+    Record: true,
     RecordingChannels: "dual",
   };
 
   const res = await fetch(
-    `https://api.telnyx.com/v2/texml/Accounts/${apiKey}/Calls.json`,
+    `https://api.telnyx.com/v2/texml/Accounts/${apiKey}/Calls`,
     {
       method: "POST",
       headers: {
-        "Authorization": "Basic " + Buffer.from(`${apiKey}:`).toString("base64"),
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-      body: new URLSearchParams(params).toString(),
+      body: JSON.stringify(body),
     }
   );
 
@@ -35,9 +37,9 @@ export async function initiateCall(to: string): Promise<string> {
   console.log("[CALL] Telnyx HTTP", res.status, "response:", rawText.slice(0, 500));
   const data = JSON.parse(rawText) as any;
   if (!res.ok) {
-    const msg = data?.message ?? rawText;
-    const code = data?.code ?? res.status;
+    const msg = data?.message ?? data?.errors?.[0]?.detail ?? rawText;
+    const code = data?.code ?? data?.errors?.[0]?.code ?? res.status;
     throw new Error(`[${code}] ${msg}`);
   }
-  return data.sid;
+  return data.sid ?? data.call_sid ?? data.to ?? "queued";
 }
