@@ -17,10 +17,10 @@ const server = createServer(app);
 const sessions = new Map<string, Conversation>();
 const sessionTimestamps = new Map<string, number>();
 
-// Pending LLM responses keyed by callSid â€" filler plays while these resolve
+// Pending LLM responses keyed by callSid - filler plays while these resolve
 const pendingResponses = new Map<string, Promise<{ text: string; ended: boolean }>>();
 
-// DB-backed session helpers â€" memory is fast cache, DB is source of truth
+// DB-backed session helpers - memory is fast cache, DB is source of truth
 async function getSession(callSid: string): Promise<Conversation | null> {
   const mem = sessions.get(callSid);
   if (mem) return mem;
@@ -54,7 +54,7 @@ const callRateLimiter = new Map<string, { count: number; resetAt: number }>();
 // â"€â"€â"€ Schema init â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 ensureSchema().then(() => console.log("[DB] Schema ready")).catch(e => console.error("[DB] Schema error:", e.message));
 
-// â"€â"€â"€ Session cleanup â€" prune stale sessions every 5 minutes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ Session cleanup - prune stale sessions every 5 minutes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000; // 30 min
   for (const [sid, ts] of sessionTimestamps.entries()) {
@@ -90,7 +90,7 @@ function validateTwilio(req: express.Request, res: express.Response, next: expre
   next();
 }
 
-// â"€â"€â"€ Jamaica business hours check (AST = UTCâˆ’5, Monâ€"Sat 09:00â€"18:00) â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ Jamaica business hours check (AST = UTCâˆ’5, Mon-Sat 09:00-18:00) â"€â"€â"€â"€â"€â"€â"€â"€â"€
 function isWithinBusinessHours(): boolean {
   const now = new Date();
   // Jamaica stays on UTCâˆ’5 year-round (no DST)
@@ -178,7 +178,7 @@ app.get("/tts", async (req, res) => {
   }
 });
 
-// â"€â"€â"€ AMD callback â€" handle answering machine detection â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ AMD callback - handle answering machine detection â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 app.post("/amd-status", validateTwilio, (req, res) => {
   const { CallSid, AnsweredBy } = req.body;
   console.log("[AMD] CallSid:", CallSid, "| AnsweredBy:", AnsweredBy);
@@ -193,7 +193,7 @@ app.post("/amd-status", validateTwilio, (req, res) => {
   <Hangup/>
 </Response>`);
   } else {
-    // Human confirmed â€" nothing to do, call is already flowing
+    // Human confirmed - nothing to do, call is already flowing
     res.sendStatus(200);
   }
 });
@@ -219,13 +219,13 @@ app.post("/call", async (req, res) => {
 
   // Business hours check (admin can bypass for testing)
   if (!bypass_hours && !isWithinBusinessHours()) {
-    return res.status(400).json({ error: "Outside business hours (Monâ€"Sat 9AMâ€"6PM Jamaica time)" });
+    return res.status(400).json({ error: "Outside business hours (Mon-Sat 9AM-6PM Jamaica time)" });
   }
 
   const onDNC = await isDNC(to);
   if (onDNC) return res.status(403).json({ error: "number on DNC list" });
 
-  // Dedup â€" don't call the same number twice within 24 hours (admin bypass_dedup skips)
+  // Dedup - don't call the same number twice within 24 hours (admin bypass_dedup skips)
   if (!req.body.bypass_dedup) {
     const recentlyCalled = await hasBeenCalledRecently(to, 24);
     if (recentlyCalled) return res.status(409).json({ error: "called within last 24 hours" });
@@ -300,7 +300,7 @@ app.post("/call-leads", async (req, res) => {
   res.json({ queued: results.filter(r => r.status === "queued").length, results });
 });
 
-// â"€â"€â"€ TwiML entry â€" play greeting immediately, then gather â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ TwiML entry - play greeting immediately, then gather â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 app.all("/twiml", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || req.query.CallSid as string || "unknown";
   const to = req.body.To || req.query.To as string || "";
@@ -326,7 +326,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
 </Response>`);
 });
 
-// â"€â"€â"€ /intro â€" prospect said hello, deliver greeting â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ /intro - prospect said hello, deliver greeting â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 app.post("/intro", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   const heard = (req.body.SpeechResult || "").trim();
@@ -343,7 +343,7 @@ app.post("/intro", validateTwilio, async (req, res) => {
   res.type("text/xml").send(buildGather(greeting, "greeting"));
 });
 
-// â"€â"€â"€ /intro-silence â€" no speech detected at connect, greet anyway â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ /intro-silence - no speech detected at connect, greet anyway â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 app.post("/intro-silence", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   console.log("[INTRO-SILENCE] No speech at connect, greeting anyway. CallSid:", callSid);
@@ -357,7 +357,7 @@ app.post("/intro-silence", validateTwilio, async (req, res) => {
   res.type("text/xml").send(buildGather(conv.getGreeting(), "greeting"));
 });
 
-// â"€â"€â"€ Handle speech input â€" return filler instantly, process LLM in background â"€
+// â"€â"€â"€ Handle speech input - return filler instantly, process LLM in background â"€
 app.post("/gather", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid;
   const speechResult = req.body.SpeechResult || "";
@@ -365,7 +365,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
   console.log("[GATHER] CallSid:", callSid, "| Confidence:", confidence.toFixed(2), "| Speech:", speechResult.slice(0, 80));
 
   if (confidence < 0.5 && speechResult) {
-    res.type("text/xml").send(buildGather("Sorry, I didn't catch that clearly â€" could you say that one more time?"));
+    res.type("text/xml").send(buildGather("Sorry, I didn't catch that clearly - could you say that one more time?"));
     return;
   }
 
@@ -377,7 +377,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
 
   conv.silenceStreak = 0;
 
-  // Kick off LLM immediately â€" don't await it here
+  // Kick off LLM immediately - don't await it here
   const responsePromise = conv.respond(speechResult);
   pendingResponses.set(callSid, responsePromise);
 
@@ -392,14 +392,14 @@ app.post("/gather", validateTwilio, async (req, res) => {
 </Response>`);
 });
 
-// â"€â"€â"€ Respond â€" await the pending LLM promise and return real TwiML â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// â"€â"€â"€ Respond - await the pending LLM promise and return real TwiML â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 app.post("/respond", validateTwilio, async (req, res) => {
   const callSid = (req.query.callSid || req.body.CallSid) as string;
   const base = process.env.PUBLIC_URL;
 
   const promise = pendingResponses.get(callSid);
   if (!promise) {
-    // No pending response â€" something went wrong, graceful fallback
+    // No pending response - something went wrong, graceful fallback
     res.type("text/xml").send(buildGather("One moment please."));
     return;
   }
@@ -451,7 +451,7 @@ app.post("/no-input", validateTwilio, async (req, res) => {
 
   if (conv.silenceStreak < 3) {
     const nudge = conv.silenceStreak === 1
-      ? "Sorry, I didn't catch that â€" could you say that again?"
+      ? "Sorry, I didn't catch that - could you say that again?"
       : "Still there? Take your time, I'm listening.";
     await setSession(callSid, conv);
     res.type("text/xml").send(buildGather(nudge));
@@ -462,7 +462,7 @@ app.post("/no-input", validateTwilio, async (req, res) => {
   await removeSession(callSid);
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${process.env.PUBLIC_URL}/tts?text=${encodeURIComponent("No problem â€" feel free to reach us at J Supreme Tech anytime. Have a great day!")}</Play>
+  <Play>${process.env.PUBLIC_URL}/tts?text=${encodeURIComponent("No problem - feel free to reach us at J Supreme Tech anytime. Have a great day!")}</Play>
   <Hangup/>
 </Response>`);
 });
@@ -513,7 +513,7 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
       ? `Send free mockup to ${mockup.wa_number ?? toNumber} within 24h. Colors: ${mockup.brand_colors ?? "TBD"}. Style: ${mockup.style_pref ?? "TBD"}.`
       : booked
       ? "Follow up within 24h to confirm proposal or trial start."
-      : "No commitment â€" retry in 3 days if not DNC.";
+      : "No commitment - retry in 3 days if not DNC.";
 
     const contact = conv.getContactCapture();
     await logCall({
@@ -615,7 +615,7 @@ app.post("/scrape", async (req, res) => {
 
   const { limit } = req.body as { limit?: string };
   runAll(limit ? parseInt(limit) : 30).catch((e: unknown) => console.error("[SCRAPE]", (e as Error).message));
-  res.json({ started: true, message: "Scraper running in background â€" check /leads for new data" });
+  res.json({ started: true, message: "Scraper running in background - check /leads for new data" });
 });
 
 // â"€â"€â"€ List leads with stats â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
