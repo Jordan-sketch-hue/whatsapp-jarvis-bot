@@ -371,10 +371,10 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   const base = process.env.PUBLIC_URL;
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="10">
+          language="en-US" timeout="20">
+    <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`);
@@ -430,7 +430,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     // Telnyx fires an empty gather almost immediately at call connect (before the caller speaks).
     // Re-play greeting so there is no dead air, then re-open gather.
     const greetingText = encodeURIComponent(conv.getGreeting());
-    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="10"></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="20"><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
     return;
   }
   if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
@@ -733,10 +733,10 @@ function buildGather(say: string, stage?: string) {
   const stageParam = stage ? `&amp;stage=${encodeURIComponent(stage)}` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="10">
+          language="en-US" timeout="20">
+    <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
