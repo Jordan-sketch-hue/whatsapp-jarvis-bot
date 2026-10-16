@@ -71,6 +71,25 @@ const callRateLimiter = new Map<string, { count: number; resetAt: number }>();
 // â"€â"€â"€ Schema init â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 ensureSchema().then(() => console.log("[DB] Schema ready")).catch(e => console.error("[DB] Schema error:", e.message));
 
+// Pre-warm TTS cache with generic greeting so first call has no cold-start silence
+const GENERIC_GREETING = `Hi, this is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
+setTimeout(async () => {
+  try {
+    const key = process.env.RIME_API_KEY;
+    if (!key) return;
+    const r = await fetch("https://users.rime.ai/v1/rime-tts", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json", "Accept": "audio/mp3" },
+      body: JSON.stringify({ text: GENERIC_GREETING, speaker: "godfrey", modelId: "coda", samplingRate: 22050, speedAlpha: 0.95 }),
+    });
+    if (r.ok) {
+      const buf = Buffer.from(await r.arrayBuffer());
+      ttsCache.set(`greeting::${GENERIC_GREETING}`, { buf, ts: Date.now() });
+      console.log("[TTS] Greeting pre-warmed, cache size:", ttsCache.size);
+    }
+  } catch (e: any) { console.error("[TTS] Pre-warm failed:", e.message); }
+}, 3000);
+
 // â"€â"€â"€ Session cleanup - prune stale sessions every 5 minutes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000; // 30 min
@@ -352,10 +371,10 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   const base = process.env.PUBLIC_URL;
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="3">
-    <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
+          language="en-US" timeout="10">
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`);
@@ -411,7 +430,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     // Telnyx fires an empty gather almost immediately at call connect (before the caller speaks).
     // Re-play greeting so there is no dead air, then re-open gather.
     const greetingText = encodeURIComponent(conv.getGreeting());
-    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="3"><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="10"></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
     return;
   }
   if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
@@ -714,10 +733,10 @@ function buildGather(say: string, stage?: string) {
   const stageParam = stage ? `&amp;stage=${encodeURIComponent(stage)}` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="3">
-    <Play>${base}/tts?text=${encoded}${stageParam}</Play>
+          language="en-US" timeout="10">
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
