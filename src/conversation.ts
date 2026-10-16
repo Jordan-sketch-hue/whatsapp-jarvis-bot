@@ -874,8 +874,14 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
         return "qualify";
 
       case "qualify":
+        // isOwnerConfirmation requires explicit role keyword (owner/manager/run/manage/etc)
+        // This distinguishes "yeah Jordan" (name only) from "yes I run a tech company" (ownership)
+        if (this.stageTurnCount >= 1 && this.isOwnerConfirmation(u)) return "mockup_offer";
+        // Generic positive without role keyword: wait for at least 2 turns (name turn + qualifier answer)
+        if (this.stageTurnCount >= 2 && this.isPositive(u)) return "mockup_offer";
         if (this.stageTurnCount >= 2 && this.isMockupYes(u)) { this.mockup.requested = true; return "mockup_collect"; }
-        if (this.stageTurnCount >= 4) return "mockup_offer";
+        // Force advance after 3 turns
+        if (this.stageTurnCount >= 3) return "mockup_offer";
         return "qualify";
 
       case "mockup_offer":
@@ -956,6 +962,14 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
     if (/trust|sure|proof|guarantee|scam|risk/.test(text)) return "trust";
     if (/don.t need|not interested|fine already|good already/.test(text)) return "no_need";
     return "no_need";  // neutral fallback — avoid assuming price objection on ambiguous speech
+  }
+
+  private isOwnerConfirmation(t: string): boolean {
+    // Requires ROLE keyword not just affirmative — prevents advancing on name-only response
+    const lower = t.toLowerCase();
+    const hasRole = /(owner|manager|director|ceo|founder|run|manage|own|handle|responsible|charge|decision|boss)/.test(lower);
+    const hasPositive = /(yes|yeah|yep|i am|i.?m|i own|i run|i manage|that.?s me|correct)/.test(lower);
+    return (hasRole && hasPositive) || /i.?m the (owner|manager|ceo|director|founder)/.test(lower);
   }
 
   private isPositive(t: string): boolean {

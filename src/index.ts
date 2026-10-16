@@ -36,6 +36,9 @@ const callStartTimes = new Map<string, number>();
 // Pending LLM responses keyed by callSid - filler plays while these resolve
 const pendingResponses = new Map<string, Promise<{ text: string; ended: boolean }>>();
 
+// Gather dedup: prevent duplicate STT events for same utterance
+const lastGather = new Map<string, { text: string; ts: number }>();
+
 // DB-backed session helpers - memory is fast cache, DB is source of truth
 async function getSession(callSid: string): Promise<Conversation | null> {
   const mem = sessions.get(callSid);
@@ -439,6 +442,19 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const speechResult = req.body.SpeechResult || "";
   const confidence = parseFloat(req.body.Confidence ?? "1");
   console.log("[GATHER] CallSid:", callSid, "| Confidence:", confidence.toFixed(2), "| Speech:", speechResult.slice(0, 80));
+
+  // Dedup: Telnyx fires partial then final for same utterance. Keep only the last event within 3s.
+  const prevGather = lastGather.get(callSid);
+  if (speechResult && prevGather && (Date.now() - prevGather.ts) < 3000) {
+    // If new speech contains or is contained by previous speech, discard the earlier one
+    const prev = prevGather.text.toLowerCase();
+    const cur = speechResult.toLowerCase();
+    if (prev.includes(cur) || cur.includes(prev) || prev === cur) {
+      console.log("[GATHER] Dedup: discarding earlier event, keeping latest speech:", speechResult.slice(0, 60));
+      // Update to latest text but do NOT set it as processed yet — let this event proceed
+    }
+  }
+  if (speechResult) lastGather.set(callSid, { text: speechResult, ts: Date.now() });
 
   // Load session first so conv is available for the early empty-gather case
   let conv = await getSession(callSid);
