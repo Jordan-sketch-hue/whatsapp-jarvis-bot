@@ -409,7 +409,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="1.5" speechModel="phone_call"
           language="en-US" timeout="12">
-    <Pause length="2"/>
+    <Pause length="0.5"/>
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
