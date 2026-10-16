@@ -115,7 +115,7 @@ export async function logCall(data: CallLog) {
          mockup_style = EXCLUDED.mockup_style,
          next_action = EXCLUDED.next_action,
          contact_method = EXCLUDED.contact_method,
-         contact_detail = EXCLUDED.contact_detail",
+         contact_detail = EXCLUDED.contact_detail`,
       [
         data.call_sid, data.to_number, data.company_name, data.industry,
         data.duration_seconds ?? 0, data.outcome,
