@@ -462,12 +462,17 @@ app.post("/gather", validateTwilio, async (req, res) => {
   }
 
   const base2 = process.env.PUBLIC_URL;
-  if (!speechResult || speechResult.trim() === "") {
-    // Empty gather: audio finished but caller hasn't spoken yet.
-    // Guard: if we responded less than 10s ago, TTS may still be playing — extend gather silently
-    const timeSinceResponse = Date.now() - (conv.lastRespondedAt ?? 0);
-    if (timeSinceResponse < 10000) {
-      console.log("[GATHER] Empty speech within 10s of TTS — extending gather silently (TTS likely still playing)");
+
+  // Noise artifact filter: dots/spaces/punctuation with no real words → treat as empty
+  const hasWords = /[a-zA-Z0-9]/.test(speechResult);
+  const isNoiseArtifact = speechResult.length > 0 && !hasWords;
+
+  if (!speechResult || speechResult.trim() === "" || isNoiseArtifact) {
+    // Use call start time as fallback when lastRespondedAt not yet set (first gather, greeting stage)
+    const lastRef = conv.lastRespondedAt ?? callStartTimes.get(callSid) ?? 0;
+    const timeSinceResponse = Date.now() - lastRef;
+    if (timeSinceResponse < 20000) {
+      console.log("[GATHER] Empty/noise within 20s of TTS — extending gather silently");
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base2}/gather" method="POST"
@@ -478,15 +483,15 @@ app.post("/gather", validateTwilio, async (req, res) => {
 </Response>`);
       return;
     }
-    // Do NOT replay the full greeting — that creates the double-greeting loop.
-    console.log("[GATHER] Empty speech — stage:", conv.getStage(), "| nudging caller");
+    console.log("[GATHER] Empty/noise — stage:", conv.getStage(), "| isNoise:", isNoiseArtifact, "| nudging caller");
     const nudge = conv.getStage() === "greeting"
       ? "Hello? Can you hear me alright?"
       : "Sorry, I didn't quite catch that — could you say that again?";
     res.type("text/xml").send(buildGather(nudge));
     return;
   }
-  if (!isNaN(confidence) && confidence < 0.5) {
+  if (!isNaN(confidence) && confidence < 0.3) {
+    console.log("[GATHER] Low confidence", confidence.toFixed(2), "— re-gathering");
     res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?", callSid));
     return;
   }
