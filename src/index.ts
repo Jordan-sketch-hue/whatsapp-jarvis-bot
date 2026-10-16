@@ -678,12 +678,14 @@ async function notifyJordan(data: {
     );
   }
 
-  // Email alert on hot leads (booked or mockup requested)
+  // Email alert on every call
   const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey && (data.booked || data.mockup.requested)) {
+  if (resendKey) {
     const subject = data.booked
       ? `HOT LEAD — ${data.toNumber} booked a follow-up`
-      : `Mockup Requested — ${data.toNumber}`;
+      : data.mockup.requested
+      ? `Mockup Requested — ${data.toNumber}`
+      : `Kai Call Review — ${data.toNumber} | ${data.stage}`;
     const html = `<pre style="font-family:monospace;font-size:14px">${message.replace(/\*/g, "")}</pre>`;
     sends.push(
       fetch("https://api.resend.com/emails", {
