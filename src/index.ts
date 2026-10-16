@@ -407,7 +407,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
-          speechTimeout="3" speechModel="phone_call"
+          speechTimeout="1.5" speechModel="phone_call"
           language="en-US" timeout="12">
     <Pause length="2"/>
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
@@ -480,7 +480,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base2}/gather" method="POST"
-          speechTimeout="3" speechModel="phone_call"
+          speechTimeout="1.5" speechModel="phone_call"
           language="en-US" timeout="15">
   </Gather>
   <Redirect method="POST">${base2}/no-input</Redirect>
@@ -815,7 +815,7 @@ function buildGather(say: string, stage?: string, callSid?: string) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
-          speechTimeout="3" speechModel="phone_call"
+          speechTimeout="1.5" speechModel="phone_call"
           language="en-US" timeout="12">
     <Play>${base}/tts?text=${encoded}${stageParam}${sidParam}</Play>
   </Gather>
