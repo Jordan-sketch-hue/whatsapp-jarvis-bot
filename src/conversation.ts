@@ -956,11 +956,11 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
   }
 
   private classifyObjection(text: string): ObjectionType {
-    if (/expensive|cost|price|afford|budget|cheap/.test(text)) return "price";
-    if (/busy|time|later|not now|next month|next year/.test(text)) return "timing";
-    if (/wife|husband|partner|manager|boss|board/.test(text)) return "authority";
-    if (/trust|sure|proof|guarantee|scam|risk/.test(text)) return "trust";
-    if (/don.t need|not interested|fine already|good already/.test(text)) return "no_need";
+    if (/expensive|cost|price|afford|budget|cheap/i.test(text)) return "price";
+    if (/busy|time|later|not now|next month|next year/i.test(text)) return "timing";
+    if (/wife|husband|partner|manager|boss|board/i.test(text)) return "authority";
+    if (/trust|sure|proof|guarantee|scam|risk/i.test(text)) return "trust";
+    if (/don.t need|not interested|fine already|good already/i.test(text)) return "no_need";
     return "no_need";  // neutral fallback — avoid assuming price objection on ambiguous speech
   }
 
@@ -974,28 +974,28 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
 
   private isPositive(t: string): boolean {
     const words = t.trim().split(/\s+/).filter(Boolean);
-    const hasStrong = /\b(yes|yeah|yep|sounds good|let.s do|go ahead|send it|perfect|absolutely|for sure)\b/.test(t);
+    const hasStrong = /\b(yes|yeah|yep|sounds good|let.s do|go ahead|send it|perfect|absolutely|for sure)\b/i.test(t);
     if (hasStrong) return true;
     // mild positives only count in multi-word responses
-    return /\b(ok|okay|sure|alright|great)\b/.test(t) && words.length >= 3;
+    return /\b(ok|okay|sure|alright|great)\b/i.test(t) && words.length >= 3;
   }
 
   private isMockupYes(t: string): boolean {
     const words = t.trim().split(/\s+/).filter(Boolean);
-    const hasNeg = /\b(already have|have one|don.t need|not interested|no thanks|no thank|nope|not really|no)\b/.test(t);
+    const hasNeg = /\b(already have|have one|don.t need|not interested|no thanks|no thank|nope|not really|no)\b/i.test(t);
     if (hasNeg) return false;
-    const hasStrong = /\b(yes|yeah|yep|send it|go ahead|sounds good|absolutely|please|why not|love to|for sure)\b/.test(t);
+    const hasStrong = /\b(yes|yeah|yep|send it|go ahead|sounds good|absolutely|please|why not|love to|for sure)\b/i.test(t);
     if (hasStrong) return true;
     // "ok/okay/sure/alright" only count inside a real multi-word response (≥3 words)
-    return /\b(ok|okay|sure|alright)\b/.test(t) && words.length >= 3;
+    return /\b(ok|okay|sure|alright)\b/i.test(t) && words.length >= 3;
   }
 
   private hasObjection(t: string): boolean {
-    return /\b(expensive|costly|budget|timing|busy|partner|husband|wife|manager|trust|already have|don.t need|not sure|maybe)\b/.test(t);
+    return /\b(expensive|costly|budget|timing|busy|partner|husband|wife|manager|trust|already have|don.t need|not sure|maybe)\b/i.test(t);
   }
 
   private isHesitation(t: string): boolean {
-    return /\b(maybe|i don.t know|hmm|not sure|let me think|possibly|perhaps|we.ll see)\b/.test(t);
+    return /\b(maybe|i don.t know|hmm|not sure|let me think|possibly|perhaps|we.ll see)\b/i.test(t);
   }
 
   private isEndPhrase(t: string): boolean {
