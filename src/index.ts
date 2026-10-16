@@ -463,11 +463,15 @@ app.post("/gather", validateTwilio, async (req, res) => {
 
   const base2 = process.env.PUBLIC_URL;
 
-  // Noise artifact filter: dots/spaces/punctuation with no real words → treat as empty
-  const hasWords = /[a-zA-Z0-9]/.test(speechResult);
-  const isNoiseArtifact = speechResult.length > 0 && !hasWords;
+  // Strip leading dot/space noise prefix (e.g. ". . hello" → "hello")
+  const cleanedSpeech = speechResult.replace(/^[\s.]+/, "").trim();
+  const effectiveSpeech = cleanedSpeech || speechResult;
 
-  if (!speechResult || speechResult.trim() === "" || isNoiseArtifact) {
+  // Noise artifact filter: dots/spaces/punctuation with no real words → treat as empty
+  const hasWords = /[a-zA-Z0-9]/.test(effectiveSpeech);
+  const isNoiseArtifact = effectiveSpeech.length > 0 && !hasWords;
+
+  if (!effectiveSpeech || effectiveSpeech.trim() === "" || isNoiseArtifact) {
     // Use call start time as fallback when lastRespondedAt not yet set (first gather, greeting stage)
     const lastRef = conv.lastRespondedAt ?? callStartTimes.get(callSid) ?? 0;
     const timeSinceResponse = Date.now() - lastRef;
@@ -490,7 +494,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     res.type("text/xml").send(buildGather(nudge));
     return;
   }
-  if (!isNaN(confidence) && confidence < 0.3) {
+  if (!isNaN(confidence) && confidence < 0.1) {
     console.log("[GATHER] Low confidence", confidence.toFixed(2), "— re-gathering");
     res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?", callSid));
     return;
@@ -500,7 +504,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
 
 
   // Kick off LLM immediately - don't await it here
-  const responsePromise = conv.respond(speechResult);
+  const responsePromise = conv.respond(effectiveSpeech);
   pendingResponses.set(callSid, responsePromise);
 
  // Play Rime TTS filler (godfrey voice) while LLM processes — avoids robot <Say> voice clash
