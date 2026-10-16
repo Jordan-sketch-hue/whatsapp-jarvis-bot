@@ -72,20 +72,31 @@ const callRateLimiter = new Map<string, { count: number; resetAt: number }>();
 ensureSchema().then(() => console.log("[DB] Schema ready")).catch(e => console.error("[DB] Schema error:", e.message));
 
 // Pre-warm TTS cache with generic greeting so first call has no cold-start silence
+const FILLER_TEXTS = ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see.", "Hello? Can you hear me alright?"];
 const GENERIC_GREETING = `Hi, this is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
 setTimeout(async () => {
   try {
     const key = process.env.RIME_API_KEY;
     if (!key) return;
-    const r = await fetch("https://users.rime.ai/v1/rime-tts", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json", "Accept": "audio/mp3" },
-      body: JSON.stringify({ text: GENERIC_GREETING, speaker: "godfrey", modelId: "coda", samplingRate: 22050, speedAlpha: 0.95 }),
-    });
-    if (r.ok) {
-      const buf = Buffer.from(await r.arrayBuffer());
-      ttsCache.set(`greeting::${GENERIC_GREETING}`, { buf, ts: Date.now() });
-      console.log("[TTS] Greeting pre-warmed, cache size:", ttsCache.size);
+    const textsToWarm = [
+      { text: GENERIC_GREETING, stage: "greeting" },
+      ...FILLER_TEXTS.map((t: string) => ({ text: t, stage: "filler" })),
+    ];
+    for (const { text, stage } of textsToWarm) {
+      const cacheKey = `${stage}::${text}`;
+      if (ttsCache.has(cacheKey)) continue;
+      const r = await fetch("https://users.rime.ai/v1/rime-tts", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json", "Accept": "audio/mp3" },
+        body: JSON.stringify({ text, speaker: "godfrey", modelId: "coda", samplingRate: 22050, speedAlpha: 0.95 }),
+      });
+      if (r.ok) {
+        const buf = Buffer.from(await r.arrayBuffer());
+        ttsCache.set(cacheKey, { buf, ts: Date.now() });
+      }
+      await new Promise((r2: any) => setTimeout(r2, 200));
+    }
+    console.log("[TTS] Pre-warmed greeting + fillers, cache size:", ttsCache.size);
     }
   } catch (e: any) { console.error("[TTS] Pre-warm failed:", e.message); }
 }, 3000);
@@ -373,7 +384,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="20">
+          language="en-US" timeout="12">
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
@@ -427,10 +438,13 @@ app.post("/gather", validateTwilio, async (req, res) => {
 
   const base2 = process.env.PUBLIC_URL;
   if (!speechResult || speechResult.trim() === "") {
-    // Telnyx fires an empty gather almost immediately at call connect (before the caller speaks).
-    // Re-play greeting so there is no dead air, then re-open gather.
-    const greetingText = encodeURIComponent(conv.getGreeting());
-    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="20"><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
+    // Empty gather: audio finished but caller hasn't spoken yet.
+    // Do NOT replay the full greeting — that creates the double-greeting loop.
+    console.log("[GATHER] Empty speech — stage:", conv.getStage(), "| nudging caller");
+    const nudge = conv.getStage() === "greeting"
+      ? "Hello? Can you hear me alright?"
+      : "Sorry, I didn't quite catch that — could you say that again?";
+    res.type("text/xml").send(buildGather(nudge));
     return;
   }
   if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
@@ -445,13 +459,13 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const responsePromise = conv.respond(speechResult);
   pendingResponses.set(callSid, responsePromise);
 
-  // Play instant filler via Twilio's own TTS (no external API) while LLM runs
+ // Play Rime TTS filler (godfrey voice) while LLM processes — avoids robot <Say> voice clash
   const base = process.env.PUBLIC_URL;
-  const fillers = ["Sure.", "Got it.", "Mm-hmm.", "Right.", "I see."];
-  const filler = fillers[Math.floor(Math.random() * fillers.length)];
+  const fillers = ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see."];
+  const filler = encodeURIComponent(fillers[Math.floor(Math.random() * fillers.length)]);
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>${filler}</Say>
+  <Play>${base}/tts?text=${filler}&amp;stage=filler</Play>
   <Redirect method="POST">${base}/respond?callSid=${encodeURIComponent(callSid)}</Redirect>
 </Response>`);
 });
@@ -735,7 +749,7 @@ function buildGather(say: string, stage?: string) {
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="20">
+          language="en-US" timeout="12">
     <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
