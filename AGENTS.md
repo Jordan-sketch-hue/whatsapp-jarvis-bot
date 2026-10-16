@@ -285,6 +285,53 @@ follow_up   → [>= 2 turns]                  → end
 | `WHATSAPP_NOTIFY_URL` | Webhook to notify Jordan on call end |
 | `SIGNALWIRE_API_TOKEN` | Webhook signature validation token |
 
+## Jordan Test Lead (pre-loaded in DB)
+
+Phone `+16582182282` has ONE slot in `sales_leads` (upsert by phone).  
+**Current entry:** J Supreme Tech · has_website=true · AI Sales Bot + Elite Marketing  
+Run `/call-leads` with `phone_filter` to call yourself using whichever scenario is loaded.
+
+### Trigger call (uses current lead data)
+```bash
+curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads   -H "x-admin-key: jst-sales-bot-2026"   -H "Content-Type: application/json"   -d '{"limit":1,"bypass_hours":true,"phone_filter":"+16582182282"}'
+```
+
+### Swap scenarios (overwrite the lead, then trigger)
+
+**SCENARIO A — No Website (restaurant, JA market)**
+```bash
+curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"Caribbean Eats","category":"restaurant","recommended_product":"Website","has_website":false,"notes":"No online presence. Pitch website J$50K. Upsell: App 20% off + $10-20 finalization discount. Marketing Starter AI bot FREE lifetime.","market":"JA"}'
+```
+Bot does: website pitch J$50K → mockup offer → app bundle + AI bot lifetime free
+
+**SCENARIO B — Has Website (founder/JST, US market) — DEFAULT**
+```bash
+curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"J Supreme Tech","category":"technology","recommended_product":"AI Sales Bot + Elite Marketing","has_website":true,"notes":"FOUNDER TEST. Already has website. Pitch: App US$1,250, Elite Marketing US$2K/mo, AI Sales Bot FREE LIFETIME with marketing.","market":"US"}'
+```
+Bot does: skips basic website → pitches App + Elite Marketing + AI bot free lifetime
+
+**SCENARIO C — Marketing + AI Bot (barbershop, JA)**
+```bash
+curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"Island Barbershop","category":"barbershop","recommended_product":"Marketing Starter + AI Chatbot","has_website":true,"notes":"Has website, no marketing. Pitch Starter J$30K/mo. AI Sales Bot FREE LIFETIME with marketing.","market":"JA"}'
+```
+Bot does: Marketing Starter J$30K/mo → AI bot included free lifetime
+
+**SCENARIO D — AI Bot Only (car wash, JA)**
+```bash
+curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"Kingston Car Wash","category":"automotive","recommended_product":"AI Sales Bot","has_website":true,"notes":"Gets leads but loses them. Pitch AI Sales Bot — FREE with any marketing package.","market":"JA"}'
+```
+Bot does: leads with AI bot pitch → FREE with marketing package
+
+### Fields the bot reads per lead (auto-routes script)
+| Field | How bot uses it |
+|---|---|
+| `has_website` | false → website pitch; true → skip to app/marketing/AI layer |
+| `recommended_product` | "Marketing *" → leads with marketing; "AI Sales Bot" → bot pitch first |
+| `category` | Personalises the pitch ("for barbershops like yours…") |
+| `market` | JA = J$ pricing; US = US$ pricing; UK = GBP pricing |
+| `business_name` | Used in greeting and throughout call |
+| `notes` | Injected into Kai's system prompt as context |
+
 ## Deploy SOP
 ```bash
 # 1. Make changes
