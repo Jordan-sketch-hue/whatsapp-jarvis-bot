@@ -15,7 +15,7 @@ export type Stage =
   | "follow_up"
   | "end";
 
-export type ObjectionType = "price" | "timing" | "authority" | "trust" | "no_need" | null;
+export type ObjectionType = "price" | "timing" | "authority" | "trust" | "no_need" | "past_experience" | "competitor" | "financial_approval" | null;
 
 export interface MockupData {
   requested: boolean;
@@ -214,11 +214,14 @@ CAN I MEET SOMEONE IN PERSON?
 `;
 
 const OBJECTION_QUALIFIERS: Record<NonNullable<ObjectionType>, string> = {
-  price:     "Is it more about the upfront investment, or is cash flow the thing right now?",
-  timing:    "Understood — is timing the main thing, or is there something else you'd want to figure out first?",
-  authority: "Of course — is that a partner, or more of a financial decision you'd need to run by someone?",
-  trust:     "That's fair — would it help to see some examples of work we've done for businesses like yours?",
-  no_need:   "I hear you — is it more that it's not a priority right now, or is the type of service not the right fit?",
+  price:              "Is it more about the upfront investment, or is cash flow the thing right now?",
+  timing:             "Understood — is timing the main thing, or is there something else you'd want to figure out first?",
+  authority:          "Of course — is that a partner, or more of a financial decision you'd need to run by someone?",
+  trust:              "That's fair — would it help to see some examples of work we've done for businesses like yours?",
+  no_need:            "I hear you — is it more that it's not a priority right now, or is the type of service not the right fit?",
+  past_experience:    "That's really helpful to know — what happened with the last agency? Was it the results, the communication, or something else entirely?",
+  competitor:         "Fair enough — how long have you been with them, and is there anything you'd change if you could?",
+  financial_approval: "Totally makes sense — is it more a budget question you'd need sign-off on, or more that they'd want to review the details first?",
 };
 
 // Cialdini-backed objection responses (loss aversion + social proof + ROI anchor)
@@ -248,6 +251,21 @@ export const OBJECTION_RESPONSES: Record<NonNullable<ObjectionType>, { reframe: 
     social_proof: "The businesses we work with that said 'we don't need it' — six months later they're asking why they waited. A competitor opened nearby, or a lockdown happened, or the referrals dried up. The website was there when nothing else was.",
     close: "I'm not saying you need everything we offer. Even just a basic site with your hours, location, and a contact number — that alone changes how customers find you.",
   },
+  past_experience: {
+    reframe: "That's actually really important context — and honestly, most of the clients we work with now came to us after a bad experience somewhere else. The difference usually comes down to communication and whether the agency actually knows your market. We're Jamaica-based and we build for Caribbean businesses specifically, not generic templates.",
+    social_proof: "We've had clients who were burned by agencies before — overpromised, underdelivered. Our track record is all live: every site we built is still up and running. I can send you three links right now and you can judge for yourself.",
+    close: "What's your WhatsApp? I'll drop you the links and our portfolio in under a minute — no commitment, just so you can see the work before you decide anything.",
+  },
+  competitor: {
+    reframe: "That's completely fair — I'm not here to tell you to drop someone you're happy with. What I'd ask is: are you getting everything you need from them right now? Sometimes businesses keep a provider out of habit, not because they're getting the best results.",
+    social_proof: "Most of the businesses we win over already had someone — the difference is we show results: live sites, active social accounts, real bookings from day one. It's not a pitch, it's a comparison.",
+    close: "Would it be worth a quick look at what we could add — even just the AI Chatbot or the AI Sales Bot on top of what your current provider does? What's your WhatsApp?",
+  },
+  financial_approval: {
+    reframe: "That makes complete sense — and the numbers are straightforward enough that it's usually a quick conversation. Website from J$50,000 one-time, marketing from J$30,000 a month. Not an ongoing risk, because you own the build outright.",
+    social_proof: "Most clients we work with had that same conversation — their accountant or partner appreciated the one-time payment structure because there's no recurring liability on the build itself.",
+    close: "What's the best way to get a formal quote over to you both? WhatsApp or email — I can have something over within the hour.",
+  },
 };
 
 type IntentKey = "pricing" | "booking" | "objection" | "pitch_request" | "end_call" | "mockup_request";
@@ -270,16 +288,16 @@ const OVERRIDE_BLOCKED: Partial<Record<Stage, IntentKey[]>> = {
 };
 
 const STAGE_MAX_TURNS: Partial<Record<Stage, number>> = {
-  greeting:           2,
-  qualify:            5,
-  mockup_offer:       2,
+  greeting:           3,
+  qualify:            9,
+  mockup_offer:       3,
   mockup_collect:     6,
-  contact_capture:    4,
-  pitch:              5,
-  objection_classify: 2,
-  objection_address:  3,
-  hesitation_close:   3,
-  close:              4,
+  contact_capture:    5,
+  pitch:              7,
+  objection_classify: 3,
+  objection_address:  5,
+  hesitation_close:   5,
+  close:              6,
 };
 
 function detectIntent(text: string): IntentKey | null {
@@ -321,6 +339,11 @@ function isHowDidYouGetNumber(text: string): boolean {
   return /\b(how (did you|d.?you) (get|find|have|know) (my )?(number|contact|details|info)|where (did you|d.?you) get (my )?(number|contact)|who gave you (my|this) number|where.?d you get this number|how do you have (my )?(number|info|contact))\b/i.test(text);
 }
 
+function isGatekeeper(text: string): boolean {
+  return /\b(how can i help|how may i help|who is calling|may i ask who|what is this regarding|nature of your call|thank you for calling|please hold|one moment please|i will transfer|let me transfer|connect you|i.ll get|who.s calling|which company|is this regarding)\b/i.test(text.trim()) ||
+    /^(good (morning|afternoon|evening)[,.]|thank you for calling|you.ve reached|you have reached)\b/i.test(text.trim());
+}
+
 function isWrongNumber(text: string): boolean {
   return /\b(wrong number|not my number|wrong person|don.?t know you|who are you|wrong business|not the right number|you have the wrong|this isn.?t|this is not the right)\b/i.test(text);
 }
@@ -340,10 +363,10 @@ async function claudeChat(
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
 
-  const trimmed = history.length > 10 ? history.slice(-10) : history;
+  const trimmed = history.length > 20 ? history.slice(-20) : history;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 12000);
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -464,6 +487,14 @@ export class Conversation {
       return { text: "Of course — go right ahead, I'm listening.", ended: false };
     }
 
+    // ── Gatekeeper detection — code-level, faster and more reliable than prompt alone ──
+    if (isGatekeeper(userText) && this.stage === "greeting") {
+      return {
+        text: "Hi, this is Kai calling from J Supreme Tech — is the owner or manager available?",
+        ended: false,
+      };
+    }
+
     // ── AI / robot question ───────────────────────────────────────────────
     if (isAiQuestion(userText)) {
       return {
@@ -572,7 +603,18 @@ export class Conversation {
     } catch (e: any) {
       if (e.message === "LLM_TIMEOUT") {
         console.error("[LLM] Timeout on turn", this.turnCount);
-        reply = "Give me just one moment — could you say that again so I catch it properly?";
+        const timeoutBridges: Partial<Record<Stage, string>> = {
+          greeting:           "Good to hear from you — and is this a good time to talk for just a couple of minutes?",
+          qualify:            "Right — let me ask quickly: do you currently have a website for the business?",
+          pitch:              "Absolutely — so the key thing I want to make sure I cover for you is which part matters most: the website, the app, or the marketing side?",
+          objection_classify: "That makes sense — is it more about the investment, or is the timing the main thing?",
+          objection_address:  "I completely hear you — here's how most of our clients approach that exact situation.",
+          hesitation_close:   "No pressure at all — is there anything specific holding you back that I can help clear up?",
+          close:              "Wonderful — let me get the best way to reach you so our team can follow up and finalize everything.",
+          schedule:           "Perfect — is there a specific time this week that works best for a quick follow-up call?",
+          follow_up:          "Of course — can I send a quick summary to your WhatsApp so you have everything handy whenever you're ready?",
+        };
+        reply = timeoutBridges[this.stage] ?? "Right — let me make sure I cover this properly for you. What's the most important question I can answer for you right now?";
       } else {
         throw e;
       }
@@ -614,20 +656,22 @@ SOUND HUMAN ON THE PHONE:
 - Use natural speech fillers when transitioning: 'So', 'Right', 'Actually', 'You know what', 'That's a great point', 'I hear you'.
 - Short affirmations before answering: 'Absolutely', 'Great question', 'Right, so', 'That makes sense'.
 - Sound like a real person, not a robot. Warm, real, Caribbean professional energy.
+RAPPORT — MANDATORY: Reference what the prospect tells you. Use their business name mid-conversation. Say "Since you mentioned you run a [business]—" or "You said [X] — that's exactly why I'm calling." Mirror their words back. People buy when they feel heard, not when they feel pitched at.
 PHONE CALL RULES:
 - Every reply must be a COMPLETE thought. Never end mid-sentence.
 - End every turn with a question OR a clear resolved statement.
-- Keep it to 2-3 SHORT sentences max.
 - Never list options with dashes or numbers — weave into natural speech.
 - Never sound scripted. Speak like a sharp, warm Caribbean professional.
 - Never trail off with '...' — every reply lands with intention.
+RESPONSE LENGTH — CALIBRATE BY STAGE: greeting=1-2 punchy sentences. qualify=1 warm question. pitch=3-4 sentences covering the key benefit. objection_address=3-4 sentences: empathy first then reframe. hesitation_close=2-3 gentle sentences, never pushy. close=1-2 sharp sentences with clear CTA. schedule=1-2 confirming sentences.
 GATEKEEPER DETECTION — MANDATORY FIRST CHECK: Before any pitch, assess whether the voice that answered is a receptionist, secretary, office assistant, AI auto-attendant, or any person who is NOT the business owner/manager/decision-maker. Gatekeeper signals: "How can I help you?", "Who is calling?", "May I ask who is calling?", "What is the nature of your call?", "One moment please", "I will transfer you", "[Business name] speaking" in a formal front-desk tone, or any AI/IVR greeting. IF you detect a gatekeeper: DO NOT PITCH. DO NOT ask business qualifying questions. Say ONLY: "Hi, this is Kai calling from J Supreme Tech — is the owner or manager available?" If they say they will transfer you: "Perfect, thank you — I will hold." Then wait silently for the owner. When the actual decision-maker picks up, THEN begin your pitch. If the owner is not available: follow the WRONG PERSON protocol below. CRITICAL: Every word pitched to a gatekeeper is wasted. Get to the owner first, always.
 WRONG PERSON AT ANY STAGE: If at any point the person says they are not the owner/decision-maker/manager: (1) Brief summary: 'Just so you can pass it along — we help businesses build websites, apps, and social media marketing. Caribbean/JA from J$50,000, US from US$650 — one-time payment.' (2) Ask to transfer: 'Is the owner available now? Even two minutes.' (3) If no transfer: 'Could you give me their direct number or WhatsApp?' (4) If not: 'No worries — they can call back on this same number, or email info@jsupremetech.online. I can also send a one-pager to your WhatsApp to pass along.' NEVER hang up without a path to the decision-maker.`;
 
     const brief = this.buildProspectBrief();
     const stageInstruction = this.buildStageInstruction();
+    const categoryIntel = getCategoryIntel(this.prospect.industry);
 
-    return `${identity}\n\n${JST_CATALOG}\n\n${FAQ_INTEL}\n\n${brief}\n\nCURRENT STAGE: ${stageInstruction}`;
+    return `${identity}\n\n${JST_CATALOG}\n\n${FAQ_INTEL}\n\n${categoryIntel ? categoryIntel + "\n\n" : ""}${brief}\n\nCURRENT STAGE: ${stageInstruction}`;
   }
 
   private buildProspectBrief(): string {
@@ -812,8 +856,14 @@ If they hesitate, offer the free hook as fallback:
 - ${p.has_website ? 'Offer: "At minimum, let me send you a FREE visual of what your app or chatbot could look like — no cost, no obligation."' : 'Offer: "At minimum, let me send you a FREE visual preview of your website via WhatsApp — 24 hours, no obligation."'}`;
       }
 
-      case "schedule":
-        return `They said yes and you have their contact. Confirm: "Perfect — someone from J Supreme Tech will be in touch at [their contact detail] within 24 hours to go over everything. Is there anything else you'd like to know before we wrap up?"`;
+      case "schedule": {
+        const nowMs = Date.now();
+        const jaMs = nowMs + (new Date().getTimezoneOffset() * 60000) + (-5 * 3600000);
+        const jaHour = new Date(jaMs).getHours();
+        const tomorrowSlot = jaHour < 12 ? "tomorrow at 10am" : jaHour < 16 ? "tomorrow at 2pm" : "tomorrow morning at 10am";
+        const altSlot = jaHour < 12 ? "or Thursday at 3pm" : "or Friday at 11am";
+        return `They said yes. Now propose a SPECIFIC follow-up time — do not be vague. Say exactly: "Perfect — let me get something locked in for you. Are you free ${tomorrowSlot}, ${altSlot}? Which one works better?" Once they confirm, say: "Great — locked in. Someone from J Supreme Tech will call you at [their contact] at [confirmed time]. Looking forward to it." Keep it crisp — 1-2 sentences max.`;
+      }
 
       case "follow_up":
         return `This stage covers TWO scenarios — read the conversation and pick the right one:
@@ -875,7 +925,7 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
 
       case "qualify":
         if (this.stageTurnCount >= 2 && this.isMockupYes(u)) { this.mockup.requested = true; return "mockup_collect"; }
-        if (this.stageTurnCount >= 4) return "mockup_offer";
+        if (this.stageTurnCount >= 6) return "mockup_offer";
         return "qualify";
 
       case "mockup_offer":
@@ -953,7 +1003,10 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
     if (/expensive|cost|price|afford|budget|cheap/.test(text)) return "price";
     if (/busy|time|later|not now|next month|next year/.test(text)) return "timing";
     if (/wife|husband|partner|manager|boss|board/.test(text)) return "authority";
+    if (/accountant|finance|financial|cfo|approve|approval/.test(text)) return "financial_approval";
     if (/trust|sure|proof|guarantee|scam|risk/.test(text)) return "trust";
+    if (/tried|before|didn.t work|last time|previous|bad experience|past/.test(text)) return "past_experience";
+    if (/already have|current (provider|agency|developer|designer|team|person)|happy with|working with someone/.test(text)) return "competitor";
     if (/don.t need|not interested|fine already|good already/.test(text)) return "no_need";
     return "no_need";  // neutral fallback — avoid assuming price objection on ambiguous speech
   }

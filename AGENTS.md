@@ -82,7 +82,10 @@ Claude Haiku receives exact scripts via system prompt. It delivers the human-rea
 | expensive, cost, price, afford, budget, cheap | `price` |
 | busy, time, later, not now, next month, next year | `timing` |
 | wife, husband, partner, manager, boss, board | `authority` |
+| accountant, finance, financial, cfo, approve, approval | `financial_approval` |
 | trust, sure, proof, guarantee, scam, risk | `trust` |
+| tried, before, didn't work, last time, previous, bad experience, past | `past_experience` |
+| already have, current provider/agency/developer/designer/team/person, happy with, working with someone | `competitor` |
 | don't need, not interested, fine already, good already | `no_need` |
 | anything else (fallback) | `no_need` |
 
@@ -256,7 +259,7 @@ follow_up   → [>= 2 turns]                  → end
 
 **Global limits:**
 - Any stage: `turnCount > 24` → force `end`
-- STAGE_MAX_TURNS: greeting=3, qualify=6, mockup_collect=6, contact_capture=4, pitch=5, objection_classify=2, objection_address=3, hesitation_close=3, close=4
+- STAGE_MAX_TURNS: greeting=3, qualify=9, mockup_offer=3, mockup_collect=6, contact_capture=5, pitch=7, objection_classify=3, objection_address=5, hesitation_close=5, close=6
 
 ---
 
@@ -335,6 +338,56 @@ curl -X POST "https://ample-exploration-production-ef51.up.railway.app/lead" \
 - **DB is Railway Postgres**: call_logs are stored in Railway Neon DB, NOT Supabase. The `/sales/calls` conglomerate page calls `/call-logs` API.
 
 ## Changelog
+
+### 2026-10-16 (v1.0.24) — Full AE Audit Fixes
+**speechTimeout**: 1.5s → 0.5s across all three Gather points in index.ts (greeting, extend, buildGather). Kai responds immediately when Jordan stops talking.
+
+**3 New Objection Types added** (`conversation.ts`):
+- `past_experience` — triggers on: tried, before, didn't work, last time, previous, bad experience, past
+- `competitor` — triggers on: already have, current provider/agency/developer/designer/team/person, happy with, working with someone
+- `financial_approval` — triggers on: accountant, finance, financial, cfo, approve, approval
+
+**OBJECTION_QUALIFIERS extended** (3 new entries for above types)
+
+**OBJECTION_RESPONSES extended** (3 new full response sets with Cialdini reframe + social proof + close):
+- past_experience: reframe around new tech vs. old experience
+- competitor: ask what they like/dislike about current provider, pivot to comparison
+- financial_approval: offer one-pager for CFO/partner review
+
+**classifyObjection()** — patterns added for financial_approval, past_experience, competitor (in priority order before no_need fallback)
+
+**isGatekeeper() function** — code-level regex detection (NOT LLM) that fires BEFORE Claude is invoked. Detects: "how can I help", "who's calling", "what is this regarding", "please hold", "I'll transfer", phone tree openers (Good morning/thank you for calling). Routes to a warm gatekeeper pivot response.
+
+**respond() gatekeeper check** — runs after fragment/interruption checks, before LLM. Avoids burning LLM tokens on receptionists.
+
+**claudeChat() history window**: 10 turns → 20 turns. Kai now remembers twice as much of the conversation.
+
+**claudeChat() LLM timeout**: 8000ms → 12000ms. Haiku gets more time before giving up.
+
+**LLM timeout stage-aware bridges**: Instead of "say that again" on timeout, Kai now delivers a stage-contextual bridge question that keeps the conversation moving. One bridge string per stage (greeting, qualify, pitch, objection_classify, objection_address, hesitation_close, close, schedule, follow_up).
+
+**STAGE_MAX_TURNS relaxed** (gives each stage more room before forcing a transition):
+- qualify: 6→9, mockup_collect: kept 6, contact_capture: 4→5, pitch: 5→7, objection_classify: 2→3, objection_address: 3→5, hesitation_close: 3→5, close: 4→6
+
+**qualify nextStage**: `stageTurnCount >= 4` → `>= 6`. Kai spends more time qualifying before pushing to mockup offer.
+
+**identity string (system prompt)**:
+- RAPPORT rule added: find ONE genuine connection in the first 3 turns
+- Stage-calibrated response length: greeting=1 short sentence, qualify=1-2 sentences, pitch=2-3, objection=2-3, close/schedule=1-2. Global "2-3 SHORT sentences" cap removed.
+
+**getCategoryIntel() now wired**: Previously dead code. buildSystem() now calls getCategoryIntel(this.prospect.industry) and injects the result into every Claude system prompt when industry is known.
+
+**schedule stage**: Now proposes a specific time slot using current Jamaica time (AM → offers afternoon same day, PM → offers next morning). No more vague "sometime this week".
+
+**Stage-aware filler pool** (index.ts): Replaced fixed 5-filler array with per-stage pool:
+- greeting: "Sure—", "Right—"
+- objection_classify/address: "That's fair—", "I hear you—"
+- close/schedule: "Wonderful—", "Absolutely—"
+- etc. Filler tone now matches where Kai is in the conversation.
+
+**FILLER_TEXTS pre-warm array** updated to include new stage fillers so Rime TTS cache is warm at startup.
+
+**model**: unchanged — remains `claude-haiku-4-5-20251001` (DO NOT change).
 
 ### 2026-10-16 (v1.0.22)
 - **POST /lead endpoint**: Insert/upsert leads into sales_leads table directly. `place_id` auto-generated as `manual_{phone_digits}`.

@@ -72,7 +72,11 @@ const callRateLimiter = new Map<string, { count: number; resetAt: number }>();
 ensureSchema().then(() => console.log("[DB] Schema ready")).catch(e => console.error("[DB] Schema error:", e.message));
 
 // Pre-warm TTS cache with generic greeting so first call has no cold-start silence
-const FILLER_TEXTS = ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see.", "Hello? Can you hear me alright?"];
+const FILLER_TEXTS = [
+  "Mm-hmm.", "Sure.", "Got it.", "Right.", "I see.",
+  "Sure—", "Right—", "Absolutely—", "I hear you—", "That's fair—", "Wonderful—",
+  "Hello? Can you hear me alright?"
+];
 const GENERIC_GREETING = `Hi, this is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
 setTimeout(async () => {
   try {
@@ -502,10 +506,25 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const responsePromise = conv.respond(effectiveSpeech);
   pendingResponses.set(callSid, responsePromise);
 
- // Play Rime TTS filler (godfrey voice) while LLM processes — avoids robot <Say> voice clash
+  // Play Rime TTS filler (godfrey voice) while LLM processes — avoids robot <Say> voice clash
   const base = process.env.PUBLIC_URL;
-  const fillers = ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see."];
-  const filler = encodeURIComponent(fillers[Math.floor(Math.random() * fillers.length)]);
+  const stage = conv.stage as string;
+  const stageFillerMap: Record<string, string[]> = {
+    greeting:          ["Sure—", "Right—"],
+    qualify:           ["Mm-hmm.", "Got it.", "Right."],
+    pitch:             ["Sure.", "Absolutely—", "Right—"],
+    objection_classify:["That's fair—", "I hear you—"],
+    objection_address: ["That's fair—", "I hear you—", "Right—"],
+    hesitation_close:  ["Sure—", "I hear you—"],
+    close:             ["Wonderful—", "Absolutely—"],
+    schedule:          ["Wonderful—", "Got it."],
+    contact_capture:   ["Got it.", "Sure."],
+    mockup_offer:      ["Sure.", "Right—"],
+    mockup_collect:    ["Got it.", "Mm-hmm."],
+    follow_up:         ["Sure.", "Right."],
+  };
+  const fillerPool = stageFillerMap[stage] ?? ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see."];
+  const filler = encodeURIComponent(fillerPool[Math.floor(Math.random() * fillerPool.length)]);
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Play>${base}/tts?text=${filler}&amp;stage=filler</Play>
