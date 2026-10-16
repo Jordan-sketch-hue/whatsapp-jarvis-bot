@@ -97,7 +97,6 @@ setTimeout(async () => {
       await new Promise((r2: any) => setTimeout(r2, 200));
     }
     console.log("[TTS] Pre-warmed greeting + fillers, cache size:", ttsCache.size);
-    }
   } catch (e: any) { console.error("[TTS] Pre-warm failed:", e.message); }
 }, 3000);
 
