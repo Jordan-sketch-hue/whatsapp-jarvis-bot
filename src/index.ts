@@ -392,12 +392,19 @@ app.post("/intro-silence", validateTwilio, async (req, res) => {
   res.type("text/xml").send(buildGather(conv.getGreeting(), "greeting"));
 });
 
-// â"€â"€â"€ Handle speech input - return filler instantly, process LLM in background â"€
+// ─── Handle speech input - return filler instantly, process LLM in background ─
 app.post("/gather", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid;
   const speechResult = req.body.SpeechResult || "";
   const confidence = parseFloat(req.body.Confidence ?? "1");
   console.log("[GATHER] CallSid:", callSid, "| Confidence:", confidence.toFixed(2), "| Speech:", speechResult.slice(0, 80));
+
+  // Load session first so conv is available for the early empty-gather case
+  let conv = await getSession(callSid);
+  if (!conv) {
+    conv = new Conversation();
+    await setSession(callSid, conv);
+  }
 
   const base2 = process.env.PUBLIC_URL;
   if (!speechResult || speechResult.trim() === "") {
@@ -411,13 +418,9 @@ app.post("/gather", validateTwilio, async (req, res) => {
     res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?"));
     return;
   }
-  let conv = await getSession(callSid);
-  if (!conv) {
-    conv = new Conversation();
-    await setSession(callSid, conv);
-  }
 
   conv.silenceStreak = 0;
+
 
   // Kick off LLM immediately - don't await it here
   const responsePromise = conv.respond(speechResult);
