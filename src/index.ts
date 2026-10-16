@@ -402,8 +402,9 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const base2 = process.env.PUBLIC_URL;
   if (!speechResult || speechResult.trim() === "") {
     // Telnyx fires an empty gather almost immediately at call connect (before the caller speaks).
-    // Silently re-open gather — no audio — so the greeting isn't interrupted.
-    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="15"></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
+    // Re-play greeting so there is no dead air, then re-open gather.
+    const greetingText = encodeURIComponent(conv.getGreeting());
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="15"><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
     return;
   }
   if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
@@ -656,19 +657,18 @@ async function notifyJordan(data: {
   const sends: Promise<any>[] = [];
 
   // Jarvis WA bot (Baileys — same Railway project, auto-injected URL)
-  const jarvisWaUrl = process.env.RAILWAY_SERVICE_WHATSAPP_JARVIS_BOT_URL;
   const waSendSecret = process.env.WA_SEND_SECRET;
-  const jordanJid = process.env.JORDAN_WA_NUMBER; // e.g. "16582182282" (digits only)
-  if (jarvisWaUrl && waSendSecret && jordanJid) {
+  const jordanJid = process.env.JORDAN_WA_NUMBER;
+  if (webhookUrl && waSendSecret && jordanJid) {
+    // Jarvis WA bot: WHATSAPP_NOTIFY_URL is the /send endpoint
     sends.push(
-      fetch(`${jarvisWaUrl}/send`, {
+      fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-send-secret": waSendSecret },
         body: JSON.stringify({ jid: jordanJid, text: message }),
       }).catch((e: any) => console.error("[NOTIFY] Jarvis WA send failed:", e.message))
     );
   } else if (webhookUrl) {
-    // fallback: legacy webhook
     sends.push(
       fetch(webhookUrl, {
         method: "POST",
