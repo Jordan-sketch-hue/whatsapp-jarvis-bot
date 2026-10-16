@@ -88,6 +88,11 @@ curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call" \
 
 ## Changelog
 
+
+### 2026-10-16 (v1.0.17)
+- **Double-greeting loop fix**: Empty Gather no longer replays the full 7s greeting. Now serves a short "Hello? Can you hear me alright?" nudge at greeting stage, or "Sorry, I didn't quite catch that" mid-conversation.
+- **Timeout fix**: `timeout="20"` → `timeout="12"` everywhere. Greeting is ~7s so 20 gave 13s of dead silence after audio. Now 5s grace window.
+- **Filler voice fix**: Replaced `<Say>` filler (robot TTS) with Rime godfrey `<Play>` filler. All fillers pre-warmed at startup alongside greeting.
 ### 2026-10-14
 - **Voice fix**: Removed `<Say voice="Polly.Joanna">` filler block from `/gather` handler in `src/index.ts`. It was playing simultaneously with Rime godfrey TTS, causing a female voice bleed-through. `/gather` now redirects directly to `/respond` with no filler audio.
 - **Supabase dual-write**: Added Supabase REST write to `logCall()` in `src/db.ts`. Bot now writes to both Railway Postgres `call_logs` AND Supabase `ibtadbwtrxglujkzqofs` `sales_calls` table on every call end, so the `/sales/calls` dashboard populates.
