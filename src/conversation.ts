@@ -449,10 +449,10 @@ export class Conversation {
 
     if (p.company_name && p.industry) {
       const product = p.recommended_service ?? "a digital solution";
-      return `Hey, is this ${p.company_name}? This is Kai from J Supreme Tech — got two minutes?`;
+      return `Hi, is this ${p.company_name}? Great — quick one, is now a good time to talk? This is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. I was reaching out to ${p.industry} businesses in Jamaica — I think there's a real opportunity for ${p.company_name}. Do you have about two minutes?`;
     }
 
-    return `Hey, this is Kai from J Supreme Tech — how are you doing today?`;
+    return `Hi, this is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
   }
 
   async respond(userText: string): Promise<{ text: string; ended: boolean }> {
