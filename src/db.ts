@@ -1,4 +1,4 @@
-﻿import { Pool } from "pg";
+import { Pool } from "pg";
 import type { CallScores } from "./conversation";
 
 if (!process.env.DATABASE_URL) {
