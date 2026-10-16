@@ -1,4 +1,4 @@
-# AGENTS.md — ai-sales-bot
+﻿# AGENTS.md â€” ai-sales-bot
 
 > Handoff document for any Claude agent picking this project up cold.
 
@@ -13,15 +13,15 @@ Outbound AI phone sales bot for J Supreme Tech. Calls businesses in Jamaica, run
 - **Framework:** Express.js
 - **Hosting:** Railway (`ample-exploration` service, project `whatsapp-jarvis-bot`)
 - **Phone:** Twilio TwiML webhooks (outbound calls only)
-- **STT:** Twilio built-in (`<Gather input="speech">`) — no Deepgram
-- **TTS:** Rime AI REST API — model `coda`, voice `godfrey`, lang `eng`
+- **STT:** Twilio built-in (`<Gather input="speech">`) â€” no Deepgram
+- **TTS:** Rime AI REST API â€” model `coda`, voice `godfrey`, lang `eng`
 - **LLM:** Anthropic `claude-haiku-4-5-20251001` via HTTP (8s timeout)
 - **DB:** PostgreSQL via Supabase `ibtadbwtrxglujkzqofs` (call_logs, prospects, call_sessions, sales_leads)
 
 ## Key Files
 | File | Role |
 |------|------|
-| `src/index.ts` | Express server — all TwiML endpoints + /tts proxy |
+| `src/index.ts` | Express server â€” all TwiML endpoints + /tts proxy |
 | `src/conversation.ts` | 12-stage state machine + LLM calls |
 | `src/call.ts` | Twilio outbound call initiation |
 | `src/db.ts` | Supabase/pg pool + schema |
@@ -29,19 +29,19 @@ Outbound AI phone sales bot for J Supreme Tech. Calls businesses in Jamaica, run
 | `src/scraper-yello.ts` | Yellow Pages JA scraper |
 
 ## Conversation Stages (in order)
-`greeting → qualify → mockup_offer → mockup_collect → pitch → objection_classify → objection_address → hesitation_close → close → schedule → follow_up → end`
+`greeting â†’ qualify â†’ mockup_offer â†’ mockup_collect â†’ pitch â†’ objection_classify â†’ objection_address â†’ hesitation_close â†’ close â†’ schedule â†’ follow_up â†’ end`
 
 ## Webhook Flow
 ```
-Twilio calls → /twiml (plays greeting via <Play>, opens <Gather>)
-Prospect speaks → /gather (starts LLM async, returns <Redirect>/respond)
-               → /respond (awaits LLM promise, returns real TwiML)
-Silence → /no-input (3-strike then hangup)
-Call ends → /call-status (logs to DB)
+Twilio calls â†’ /twiml (plays greeting via <Play>, opens <Gather>)
+Prospect speaks â†’ /gather (starts LLM async, returns <Redirect>/respond)
+               â†’ /respond (awaits LLM promise, returns real TwiML)
+Silence â†’ /no-input (3-strike then hangup)
+Call ends â†’ /call-status (logs to DB)
 ```
 
 ## Persona
-Bot introduces itself as **Alex** from J Supreme Tech. Never "Aria".
+Bot introduces itself as **Kai** from J Supreme Tech. Never "Aria".
 
 ## TTS Cache
 In-memory, 100-entry LRU, 1hr TTL. Cleared on each deploy (Railway new container).
@@ -49,14 +49,14 @@ In-memory, 100-entry LRU, 1hr TTL. Cleared on each deploy (Railway new container
 ## Env Vars Required
 | Var | Purpose |
 |-----|---------|
-| `RIME_API_KEY` | Rime AI TTS — `YLHwcn527Deo...` |
+| `RIME_API_KEY` | Rime AI TTS â€” `YLHwcn527Deo...` |
 | `ANTHROPIC_API_KEY` | Claude LLM |
 | `TWILIO_ACCOUNT_SID` | Twilio account |
 | `TWILIO_AUTH_TOKEN` | Twilio webhook validation |
 | `TWILIO_FROM_NUMBER` | Outbound caller ID |
 | `DATABASE_URL` | Supabase Postgres connection string |
 | `PUBLIC_URL` | Bot's Railway public URL (no trailing slash) |
-| `ADMIN_KEY` | `jst-sales-bot-2026` — gates /call and /call-leads |
+| `ADMIN_KEY` | `jst-sales-bot-2026` â€” gates /call and /call-leads |
 | `WHATSAPP_NOTIFY_URL` | Webhook to notify Jordan on call end |
 
 ## Deploy SOP
@@ -80,8 +80,17 @@ curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call" \
 ## Known Gotchas
 - **Railway build cache**: identical source = cached build. Always bump `package.json` version before deploy.
 - **Rime model**: must be `coda` for `godfrey` voice. `mist`/`mistv2` do NOT support it.
-- **TwiML echo loop**: `<Play>` MUST come BEFORE `<Gather>` — never nest Play inside Gather.
-- **Async lag fix**: `/gather` kicks off `conv.respond()` as a Promise immediately, stores in `pendingResponses` Map, returns `<Redirect>/respond`. `/respond` awaits that promise. This is intentional — do not revert to synchronous.
-- **follow_up stage**: stays in follow_up for 2 turns (`stageTurnCount >= 2`) before ending — gives time to collect WhatsApp number.
+- **TwiML echo loop**: `<Play>` MUST come BEFORE `<Gather>` â€” never nest Play inside Gather.
+- **Async lag fix**: `/gather` kicks off `conv.respond()` as a Promise immediately, stores in `pendingResponses` Map, returns `<Redirect>/respond`. `/respond` awaits that promise. This is intentional â€” do not revert to synchronous.
+- **follow_up stage**: stays in follow_up for 2 turns (`stageTurnCount >= 2`) before ending â€” gives time to collect WhatsApp number.
 - **Trial Twilio account**: only verified numbers can be called. No AMD, no recording unless `TWILIO_PAID=true`.
 - **GitHub auto-deploy NOT wired**: must use `railway up` CLI to deploy.
+
+## Changelog
+
+### 2026-10-14
+- **Voice fix**: Removed `<Say voice="Polly.Joanna">` filler block from `/gather` handler in `src/index.ts`. It was playing simultaneously with Rime godfrey TTS, causing a female voice bleed-through. `/gather` now redirects directly to `/respond` with no filler audio.
+- **Supabase dual-write**: Added Supabase REST write to `logCall()` in `src/db.ts`. Bot now writes to both Railway Postgres `call_logs` AND Supabase `ibtadbwtrxglujkzqofs` `sales_calls` table on every call end, so the `/sales/calls` dashboard populates.
+- **Phone change**: Migrated from Twilio to Telnyx (`FROM_NUMBER=+17547991892`, TeXML API). Updated `src/call.ts` and `src/index.ts` to use Telnyx TeXML webhooks instead of TwiML.
+- **NEVER change Rime godfrey voice**: The TTS is Rime AI `godfrey` (coda model). Never swap it for Polly, Azure, or any other provider.
+

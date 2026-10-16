@@ -49,8 +49,12 @@ export async function ensureSchema() {
       mockup_colors TEXT,
       mockup_style TEXT,
       next_action TEXT,
+      contact_method TEXT,
+      contact_detail TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS contact_method TEXT;
+    ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS contact_detail TEXT;
     CREATE TABLE IF NOT EXISTS prospects (
       id SERIAL PRIMARY KEY,
       company_name TEXT,
@@ -95,8 +99,9 @@ export async function logCall(data: CallLog) {
       `INSERT INTO call_logs
         (call_sid, to_number, company_name, industry, duration_seconds, outcome,
          transcript, booked_followup, stage_reached, scores,
-         mockup_requested, mockup_wa_number, mockup_colors, mockup_style, next_action)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         mockup_requested, mockup_wa_number, mockup_colors, mockup_style, next_action,
+         contact_method, contact_detail)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        ON CONFLICT (call_sid) DO UPDATE SET
          duration_seconds = EXCLUDED.duration_seconds,
          outcome = EXCLUDED.outcome,
@@ -108,7 +113,9 @@ export async function logCall(data: CallLog) {
          mockup_wa_number = EXCLUDED.mockup_wa_number,
          mockup_colors = EXCLUDED.mockup_colors,
          mockup_style = EXCLUDED.mockup_style,
-         next_action = EXCLUDED.next_action`,
+         next_action = EXCLUDED.next_action,
+         contact_method = EXCLUDED.contact_method,
+         contact_detail = EXCLUDED.contact_detail",
       [
         data.call_sid, data.to_number, data.company_name, data.industry,
         data.duration_seconds ?? 0, data.outcome,
@@ -116,6 +123,7 @@ export async function logCall(data: CallLog) {
         data.scores ? JSON.stringify(data.scores) : null,
         data.mockup_requested ?? false, data.mockup_wa_number,
         data.mockup_colors, data.mockup_style, data.next_action,
+        data.contact_method, data.contact_detail,
       ]
     );
   } catch (e: any) {
@@ -405,4 +413,6 @@ export async function logMarketingLead(data: MarketingLead): Promise<void> {
     console.error("[DB] logMarketingLead error:", e.message);
   }
 }
+
+
 

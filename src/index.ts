@@ -354,7 +354,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="10">
+          language="en-US" timeout="3">
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
@@ -411,7 +411,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     // Telnyx fires an empty gather almost immediately at call connect (before the caller speaks).
     // Re-play greeting so there is no dead air, then re-open gather.
     const greetingText = encodeURIComponent(conv.getGreeting());
-    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="15"><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
+    res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" action="${base2}/gather" method="POST" speechTimeout="auto" speechModel="phone_call" language="en-US" timeout="3"><Play>${base2}/tts?text=${greetingText}&amp;stage=greeting</Play></Gather><Redirect method="POST">${base2}/no-input?CallSid=${encodeURIComponent(callSid)}</Redirect></Response>`);
     return;
   }
   if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
@@ -432,7 +432,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const filler = fillers[Math.floor(Math.random() * fillers.length)];
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Matthew">${filler}</Say>
+  <Say>${filler}</Say>
   <Redirect method="POST">${base}/respond?callSid=${encodeURIComponent(callSid)}</Redirect>
 </Response>`);
 });
@@ -716,7 +716,7 @@ function buildGather(say: string, stage?: string) {
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
-          language="en-US" timeout="10">
+          language="en-US" timeout="3">
     <Play>${base}/tts?text=${encoded}${stageParam}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
@@ -818,11 +818,10 @@ app.get("/follow-ups", async (req, res) => {
       SELECT ml.phone, ml.business_name, ml.industry, ml.interest_level,
              ml.interested_services, ml.contact_method, ml.contact_detail,
              ml.notes, ml.created_at,
-             cs.stage_reached, cs.booked_followup, cs.mockup_requested,
-             cs.mockup_wa_number, cs.next_action, cs.call_sid,
-             cs.interested_tier
+             cl.stage_reached, cl.booked_followup, cl.mockup_requested,
+             cl.mockup_wa_number, cl.next_action, cl.call_sid
       FROM marketing_leads ml
-      LEFT JOIN call_sessions cs ON cs.to_number = ml.phone
+      LEFT JOIN call_logs cl ON cl.to_number = ml.phone
       ORDER BY CASE ml.interest_level WHEN 'hot' THEN 1 WHEN 'warm' THEN 2 ELSE 3 END,
                ml.created_at DESC
       LIMIT 200
@@ -845,6 +844,10 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
+
+
+
 
 
 
