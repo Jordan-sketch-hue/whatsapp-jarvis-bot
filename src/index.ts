@@ -167,7 +167,16 @@ const STAGE_SPEAKER: Record<string, string> = {
 app.get("/tts", async (req, res) => {
   const text = (req.query.text as string) || "";
   const stage = (req.query.stage as string) || "";
+  const sid = (req.query.sid as string) || "";
   if (!text) { res.status(400).send("text required"); return; }
+
+  if (sid && text.length > 0) {
+    const conv = await getSession(sid);
+    if (conv) {
+      conv.rimeChars += text.length;
+      await setSession(sid, conv);
+    }
+  }
 
   const key = process.env.RIME_API_KEY;
   if (!key) { res.status(500).send("Rime API key not set"); return; }
@@ -421,7 +430,7 @@ app.post("/intro", validateTwilio, async (req, res) => {
 
   const greeting = conv.getGreeting();
   console.log("[INTRO] Greeting:", greeting.slice(0, 80));
-  res.type("text/xml").send(buildGather(greeting, "greeting"));
+  res.type("text/xml").send(buildGather(greeting, "greeting", callSid));
 });
 
 // â"€â"€â"€ /intro-silence - no speech detected at connect, greet anyway â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -478,7 +487,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     return;
   }
   if (!isNaN(confidence) && confidence < 0.5) {
-    res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?"));
+    res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?", callSid));
     return;
   }
 
@@ -545,7 +554,7 @@ app.post("/respond", validateTwilio, async (req, res) => {
     } else {
       conv.lastRespondedAt = Date.now();
       await setSession(callSid, conv);
-      res.type("text/xml").send(buildGather(reply, currentStage));
+      res.type("text/xml").send(buildGather(reply, currentStage, callSid));
     }
   } catch (e: any) {
     console.error("[RESPOND] Error:", e.message);
@@ -640,6 +649,16 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
       : "No commitment - retry in 3 days if not DNC.";
 
     const contact = conv.getContactCapture();
+    const rimeCharCount = conv.rimeChars ?? 0;
+    const anthropicIn = conv.anthropicInputTokens ?? 0;
+    const anthropicOut = conv.anthropicOutputTokens ?? 0;
+    const durationMin = duration / 60;
+    const callCostUsd = parseFloat(
+      ((rimeCharCount / 1000) * 0.0075
+        + (anthropicIn / 1_000_000) * 0.25
+        + (anthropicOut / 1_000_000) * 1.25
+        + durationMin * 0.007).toFixed(5)
+    );
     await logCall({
       call_sid: callSid,
       to_number: toNumber,
@@ -656,6 +675,10 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
       contact_method: contact.method,
       contact_detail: contact.detail,
       next_action: nextAction,
+      rime_chars: rimeCharCount,
+      anthropic_input_tokens: anthropicIn,
+      anthropic_output_tokens: anthropicOut,
+      cost_usd: callCostUsd,
     });
     // Log to marketing_leads if marketing was discussed
     if (conv.hadMarketingInterest()) {
@@ -780,16 +803,17 @@ async function notifyJordan(data: {
 }
 
 // â"€â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-function buildGather(say: string, stage?: string) {
+function buildGather(say: string, stage?: string, callSid?: string) {
   const base = process.env.PUBLIC_URL;
   const encoded = encodeURIComponent(say);
   const stageParam = stage ? `&amp;stage=${encodeURIComponent(stage)}` : "";
+  const sidParam = callSid ? `&amp;sid=${encodeURIComponent(callSid)}` : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
           language="en-US" timeout="12">
-    <Play>${base}/tts?text=${encoded}${stageParam}</Play>
+    <Play>${base}/tts?text=${encoded}${stageParam}${sidParam}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`;
@@ -817,6 +841,53 @@ app.post("/scrape-intl", async (req, res) => {
 });
 
 // â"€â"€â"€ List leads with stats â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+app.post("/lead", async (req, res) => {
+  if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: "unauthorized" });
+
+  const { phone, business_name, category, recommended_product, has_website, notes, market } = req.body;
+  if (!phone) return res.status(400).json({ error: "phone required" });
+
+  const normalizedPhone = toE164(phone);
+  const place_id = `manual_${normalizedPhone.replace(/\D/g, "")}`;
+
+  const dbPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL?.includes("supabase.co") ? { rejectUnauthorized: false } : undefined,
+  });
+  try {
+    await dbPool.query(
+      `INSERT INTO sales_leads
+         (place_id, business_name, phone, category, recommended_product, has_website, notes, market, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'new')
+       ON CONFLICT (place_id) DO UPDATE SET
+         status = 'new',
+         business_name = EXCLUDED.business_name,
+         category = EXCLUDED.category,
+         recommended_product = EXCLUDED.recommended_product,
+         has_website = EXCLUDED.has_website,
+         notes = EXCLUDED.notes,
+         market = EXCLUDED.market`,
+      [
+        place_id,
+        business_name ?? "Unknown",
+        normalizedPhone,
+        category ?? null,
+        recommended_product ?? null,
+        has_website ?? false,
+        notes ?? null,
+        market ?? null,
+      ]
+    );
+    console.log(`[LEAD] Upserted: ${normalizedPhone} (${business_name})`);
+    res.json({ ok: true, place_id, phone: normalizedPhone });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  } finally {
+    await dbPool.end();
+  }
+});
+
 app.get("/leads", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });

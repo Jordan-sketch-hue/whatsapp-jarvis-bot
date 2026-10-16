@@ -168,6 +168,12 @@ async function scrapeCategory(
       const placeId = `yello:${cat.slug}:${l.name.toLowerCase().replace(/\s+/g, "-").slice(0, 40)}`;
       const hasWebsite = !!l.website;
 
+      // Skip Tier 1 leads that already have a website — they're established enough
+      if (cat.tier === 1 && hasWebsite) {
+        console.log(`    - SKIP ${l.name} (T1 + has website)`);
+        continue;
+      }
+
       try {
         const inserted_row = await dbUpsert({
           place_id: placeId,

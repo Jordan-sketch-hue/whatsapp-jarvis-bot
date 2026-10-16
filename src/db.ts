@@ -28,6 +28,10 @@ export interface CallLog {
   next_action?: string;
   contact_method?: string;
   contact_detail?: string;
+  rime_chars?: number;
+  anthropic_input_tokens?: number;
+  anthropic_output_tokens?: number;
+  cost_usd?: number;
 }
 
 export async function ensureSchema() {
@@ -71,6 +75,12 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0;
+    ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS notes TEXT;
+    ALTER TABLE sales_leads ADD COLUMN IF NOT EXISTS market TEXT;
+    ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS rime_chars INTEGER DEFAULT 0;
+    ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS anthropic_input_tokens INTEGER DEFAULT 0;
+    ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS anthropic_output_tokens INTEGER DEFAULT 0;
+    ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS cost_usd NUMERIC(10,5) DEFAULT 0;
     CREATE TABLE IF NOT EXISTS call_sessions (
       call_sid TEXT PRIMARY KEY,
       state JSONB NOT NULL,
@@ -100,8 +110,9 @@ export async function logCall(data: CallLog) {
         (call_sid, to_number, company_name, industry, duration_seconds, outcome,
          transcript, booked_followup, stage_reached, scores,
          mockup_requested, mockup_wa_number, mockup_colors, mockup_style, next_action,
-         contact_method, contact_detail)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         contact_method, contact_detail,
+         rime_chars, anthropic_input_tokens, anthropic_output_tokens, cost_usd)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        ON CONFLICT (call_sid) DO UPDATE SET
          duration_seconds = EXCLUDED.duration_seconds,
          outcome = EXCLUDED.outcome,
@@ -115,7 +126,11 @@ export async function logCall(data: CallLog) {
          mockup_style = EXCLUDED.mockup_style,
          next_action = EXCLUDED.next_action,
          contact_method = EXCLUDED.contact_method,
-         contact_detail = EXCLUDED.contact_detail`,
+         contact_detail = EXCLUDED.contact_detail,
+         rime_chars = EXCLUDED.rime_chars,
+         anthropic_input_tokens = EXCLUDED.anthropic_input_tokens,
+         anthropic_output_tokens = EXCLUDED.anthropic_output_tokens,
+         cost_usd = EXCLUDED.cost_usd`,
       [
         data.call_sid, data.to_number, data.company_name, data.industry,
         data.duration_seconds ?? 0, data.outcome,
@@ -124,6 +139,8 @@ export async function logCall(data: CallLog) {
         data.mockup_requested ?? false, data.mockup_wa_number,
         data.mockup_colors, data.mockup_style, data.next_action,
         data.contact_method, data.contact_detail,
+        data.rime_chars ?? 0, data.anthropic_input_tokens ?? 0,
+        data.anthropic_output_tokens ?? 0, data.cost_usd ?? 0,
       ]
     );
   } catch (e: any) {

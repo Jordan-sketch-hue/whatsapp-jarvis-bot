@@ -336,7 +336,7 @@ function isSendEmailRequest(text: string): boolean {
 async function claudeChat(
   system: string,
   history: { role: string; content: string }[]
-): Promise<string> {
+): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
 
@@ -365,7 +365,11 @@ async function claudeChat(
 
     const data = await res.json() as any;
     if (!res.ok) throw new Error(`Claude ${res.status}: ${JSON.stringify(data)}`);
-    return data.content?.[0]?.text?.trim() ?? "Could you repeat that?";
+    return {
+      text: data.content?.[0]?.text?.trim() ?? "Could you repeat that?",
+      inputTokens: data.usage?.input_tokens ?? 0,
+      outputTokens: data.usage?.output_tokens ?? 0,
+    };
   } catch (e: any) {
     if (e.name === "AbortError") throw new Error("LLM_TIMEOUT");
     throw e;
@@ -423,6 +427,9 @@ Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N
 export class Conversation {
   silenceStreak: number = 0;
   lastRespondedAt: number = 0;
+  rimeChars: number = 0;
+  anthropicInputTokens: number = 0;
+  anthropicOutputTokens: number = 0;
   private stage: Stage = "greeting";
   private history: { role: "user" | "assistant"; content: string }[] = [];
   private prospect: ProspectBrief;
@@ -558,7 +565,10 @@ export class Conversation {
     const system = this.buildSystem();
     let reply: string;
     try {
-      reply = await claudeChat(system, this.history);
+      const { text: _replyText, inputTokens: _iTokens, outputTokens: _oTokens } = await claudeChat(system, this.history);
+      reply = _replyText;
+      this.anthropicInputTokens += _iTokens;
+      this.anthropicOutputTokens += _oTokens;
     } catch (e: any) {
       if (e.message === "LLM_TIMEOUT") {
         console.error("[LLM] Timeout on turn", this.turnCount);
@@ -1065,6 +1075,9 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
       stageTurnCount: this.stageTurnCount,
       silenceStreak: this.silenceStreak,
       dncRequested: this.dncRequested,
+      rimeChars: this.rimeChars,
+      anthropicInputTokens: this.anthropicInputTokens,
+      anthropicOutputTokens: this.anthropicOutputTokens,
     };
   }
 
@@ -1079,6 +1092,9 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
     conv["stageTurnCount"] = data.stageTurnCount ?? 0;
     conv.silenceStreak = data.silenceStreak ?? 0;
     conv["dncRequested"] = data.dncRequested ?? false;
+    conv.rimeChars = data.rimeChars ?? 0;
+    conv.anthropicInputTokens = data.anthropicInputTokens ?? 0;
+    conv.anthropicOutputTokens = data.anthropicOutputTokens ?? 0;
     return conv;
   }
 }
