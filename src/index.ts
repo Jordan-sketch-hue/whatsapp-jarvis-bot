@@ -508,7 +508,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
 
   // Play Rime TTS filler (godfrey voice) while LLM processes — avoids robot <Say> voice clash
   const base = process.env.PUBLIC_URL;
-  const stage = conv.stage as string;
+  const stage = conv.currentStage as string;
   const stageFillerMap: Record<string, string[]> = {
     greeting:          ["Sure—", "Right—"],
     qualify:           ["Mm-hmm.", "Got it.", "Right."],

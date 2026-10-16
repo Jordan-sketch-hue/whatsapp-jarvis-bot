@@ -454,6 +454,7 @@ export class Conversation {
   anthropicInputTokens: number = 0;
   anthropicOutputTokens: number = 0;
   private stage: Stage = "greeting";
+  get currentStage(): Stage { return this.stage; }
   private history: { role: "user" | "assistant"; content: string }[] = [];
   private prospect: ProspectBrief;
   private mockup: MockupData = { requested: false, questions_asked: 0 };
