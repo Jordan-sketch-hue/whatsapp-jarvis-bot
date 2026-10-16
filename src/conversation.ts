@@ -422,6 +422,7 @@ Return: {"interest":N,"usefulness":N,"resourcefulness":N,"emotional_resonance":N
 
 export class Conversation {
   silenceStreak: number = 0;
+  lastRespondedAt: number = 0;
   private stage: Stage = "greeting";
   private history: { role: "user" | "assistant"; content: string }[] = [];
   private prospect: ProspectBrief;
@@ -484,6 +485,7 @@ export class Conversation {
 
     // ── Call-back request — offer a specific time ─────────────────────────
     if (isCallBackRequest(userText) && this.stage !== "end") {
+      this.stageTurnCount = 0;
       this.stage = "follow_up";
       return {
         text: "Of course — no problem at all. When would be a better time for me to reach you? I'm happy to call back tomorrow, later this week, or whenever works best for you.",
@@ -503,6 +505,7 @@ export class Conversation {
     // ── Already has a website/provider ───────────────────────────────────
     if (isAlreadyHasProvider(userText) && ["qualify", "pitch", "greeting"].includes(this.stage)) {
       this.prospect.has_website = true;
+      this.stageTurnCount = 0;
       this.stage = "pitch";
       return {
         text: "That's great — having a site already puts you ahead. Now here's where the real growth happens. First: a Mobile App — from J$80,000 one-time for Jamaica, US$1,250 for the US, and you own it outright. Your customers get your business on their phone — they can book appointments, place orders, earn loyalty points, and message you directly, all without going to a browser. It is a direct channel that keeps them coming back. Second: an AI Chatbot on your existing site — US$50 a month — it answers every customer question 24/7, captures leads while you sleep, and can even handle bookings automatically. You never miss an enquiry again, even at 2 in the morning. Third: our Marketing Package — starts at J$30,000 a month for Jamaica or US$500 for the US — Instagram, Facebook, email campaigns, paid ads, AND an AI Sales Bot that calls your leads and books appointments automatically. That last part is exactly what you are talking to right now. A lot of businesses take the App and Marketing together as a full stack. Which of those three sounds most urgent for your business right now?",
@@ -513,6 +516,7 @@ export class Conversation {
     // ── Prefers email ─────────────────────────────────────────────────────
     if (isSendEmailRequest(userText) && this.stage !== "end") {
       this.contact.method = "email";
+      this.stageTurnCount = 0;
       this.stage = "contact_capture";
       return {
         text: "Absolutely — what's the best email address to send that to? I'll have our team send over a full breakdown including pricing, portfolio samples, and a summary of what we'd recommend for your business.",
@@ -588,6 +592,7 @@ export class Conversation {
       const numMatch = text.match(/\+?[\d][\d\s\-\(\)]{6,}\d/);
       if (numMatch) { this.contact.detail = numMatch[0].replace(/[\s\-\(\)]/g, ""); }
     }
+    if (!this.contact.method && this.contact.detail) this.contact.method = "whatsapp";
     if (this.contact.method && this.contact.detail) this.contact.captured = true;
   }
 
@@ -658,8 +663,16 @@ NEVER bring up sibling businesses at the start — qualify the first one first, 
 
   private buildStageInstruction(): string {
     switch (this.stage) {
-      case "greeting":
-        return "Greet warmly. Ask what type of business they run. One question only.";
+      case "greeting": {
+        const p = this.prospect;
+        if (p.company_name && p.industry) {
+          return `You are calling ${p.company_name} — a ${p.industry} business. DO NOT ask what type of business they run — you already know from the leads data. Confirm you have the right person and introduce yourself naturally. Do NOT disclose you are AI unless directly asked. Ask a single warm qualifying question to open the conversation.`;
+        }
+        if (p.company_name) {
+          return `You are calling ${p.company_name}. Confirm you have the right person, introduce yourself as Kai from J Supreme Tech. Ask one qualifying question about their business type. Do NOT disclose you are AI unless directly asked.`;
+        }
+        return "Greet warmly and confirm you have the right person. Do NOT ask 'what type of business do you run' in the first message — first confirm identity, then ask. Do NOT disclose you are AI unless directly asked.";
+      }
 
       case "qualify": {
         const p = this.prospect;
@@ -689,9 +702,13 @@ NEVER bring up sibling businesses at the start — qualify the first one first, 
         }
 
         if (p.company_name && p.industry) {
-          return `You know ${p.company_name} is a ${p.industry} business. Ask one qualifying question: do they have a website? Then pitch accordingly.`;
+          return `You are speaking with ${p.company_name} — a ${p.industry} business. YOU ALREADY KNOW THEIR BUSINESS TYPE. DO NOT ask "what type of business do you run?" — you have this from the leads data. Your ONLY task right now: ask ONE question to find out if they have a website. Example: "Quick question — do you currently have a website for ${p.company_name}?" Then pitch based on their answer. Do NOT disclose you are AI unless directly asked.`;
         }
 
+        // No prospect data — recovery question if silent
+        if (this.silenceStreak >= 1) {
+          return `The prospect has been silent. DO NOT play generic filler. Ask directly and warmly: "Hey — are you still there? Just a quick question — does your business currently have a website?" Then wait. This is the qualifying question — get their answer.`;
+        }
         return `FEATURE REQUESTS — handle naturally:
 SIMPLE/STANDARD features (say YES confidently): QR code booking links, WhatsApp chat button, online booking/scheduling, gallery/photo pages, price lists, Google Maps embed, social media links, menu pages, contact forms, click-to-call buttons, loyalty stamp cards, SMS reminders, event pages, promo banners, product listings.
 CUSTOM/COMPLEX features (say "our team will handle it"): custom integrations, specific POS/accounting connections, advanced automation, custom apps, AI features beyond chatbot.
@@ -847,8 +864,8 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
         return "qualify";
 
       case "qualify":
-        if (this.turnCount >= 2 && this.isMockupYes(u)) { this.mockup.requested = true; return "mockup_collect"; }
-        if (this.turnCount >= 3) return "mockup_offer";
+        if (this.stageTurnCount >= 2 && this.isMockupYes(u)) { this.mockup.requested = true; return "mockup_collect"; }
+        if (this.stageTurnCount >= 4) return "mockup_offer";
         return "qualify";
 
       case "mockup_offer":
@@ -861,7 +878,7 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
         return mc;
 
       case "contact_capture":
-        if (this.contact.captured || this.stageTurnCount >= 3) return "schedule";
+        if (this.contact.captured || this.stageTurnCount >= 4) return "schedule";
         return "contact_capture";
 
       case "pitch":
@@ -878,6 +895,7 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
 
       case "hesitation_close":
         if (this.isPositive(u)) return "close";
+        if (this.stageTurnCount < 2) return "hesitation_close";
         this.objectionType = this.classifyObjection(u);
         return "objection_classify";
 
@@ -927,16 +945,25 @@ BEFORE ending, confirm product direction internally so the follow-up team knows 
     if (/wife|husband|partner|manager|boss|board/.test(text)) return "authority";
     if (/trust|sure|proof|guarantee|scam|risk/.test(text)) return "trust";
     if (/don.t need|not interested|fine already|good already/.test(text)) return "no_need";
-    return "price";
+    return "no_need";  // neutral fallback — avoid assuming price objection on ambiguous speech
   }
 
   private isPositive(t: string): boolean {
-    return /\b(yes|yeah|yep|sure|ok|okay|alright|sounds good|let.s do|go ahead|send it|perfect|great|absolutely)\b/.test(t);
+    const words = t.trim().split(/\s+/).filter(Boolean);
+    const hasStrong = /\b(yes|yeah|yep|sounds good|let.s do|go ahead|send it|perfect|absolutely|for sure)\b/.test(t);
+    if (hasStrong) return true;
+    // mild positives only count in multi-word responses
+    return /\b(ok|okay|sure|alright|great)\b/.test(t) && words.length >= 3;
   }
 
   private isMockupYes(t: string): boolean {
-    return /\b(yes|yeah|yep|sure|ok|okay|alright|send it|go ahead|sounds good|absolutely|please|why not)\b/.test(t)
-      && !/\b(already have|have one|don.t need|not interested|no thanks|no thank|nope)\b/.test(t);
+    const words = t.trim().split(/\s+/).filter(Boolean);
+    const hasNeg = /\b(already have|have one|don.t need|not interested|no thanks|no thank|nope|not really|no)\b/.test(t);
+    if (hasNeg) return false;
+    const hasStrong = /\b(yes|yeah|yep|send it|go ahead|sounds good|absolutely|please|why not|love to|for sure)\b/.test(t);
+    if (hasStrong) return true;
+    // "ok/okay/sure/alright" only count inside a real multi-word response (≥3 words)
+    return /\b(ok|okay|sure|alright)\b/.test(t) && words.length >= 3;
   }
 
   private hasObjection(t: string): boolean {

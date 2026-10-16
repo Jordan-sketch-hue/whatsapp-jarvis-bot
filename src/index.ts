@@ -225,14 +225,28 @@ app.get("/tts", async (req, res) => {
 });
 
 // â"€â"€â"€ AMD callback - handle answering machine detection â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-app.post("/amd-status", validateTwilio, (req, res) => {
+app.post("/amd-status", validateTwilio, async (req, res) => {
   const { CallSid, AnsweredBy } = req.body;
   console.log("[AMD] CallSid:", CallSid, "| AnsweredBy:", AnsweredBy);
 
   // If it's a machine/voicemail, play a brief voicemail and hang up
   if (AnsweredBy === "machine_start") {
-    // Machine still connecting - human may pick up after the greeting; let call continue
-    console.log("[AMD] machine_start — passing through, waiting for human pickup");
+    // Voicemail connecting — hang up immediately, do not let IVR audio bleed as speech
+    console.log("[AMD] machine_start — hanging up to prevent voicemail bleed");
+    try {
+      const orgId = process.env.TELNYX_ORG_ID!;
+      const apiKey = process.env.TELNYX_API_KEY!;
+      await fetch(`https://api.telnyx.com/v2/texml/Accounts/${orgId}/Calls/${encodeURIComponent(CallSid)}`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "Status=completed",
+      });
+    } catch (e: any) {
+      console.error("[AMD] hang up error:", e.message);
+    }
     res.sendStatus(200);
     return;
   }
@@ -288,12 +302,13 @@ app.post("/call", async (req, res) => {
   }
 
   try {
-    const call_sid = await initiateCall(toE164(to));
+    const normalizedTo = toE164(to);
+    const call_sid = await initiateCall(normalizedTo);
     const conv = new Conversation(
       await getProspect(to) ?? { company_name, industry }
     );
-    sessions.set(`pending_${to}`, conv);
-    sessionTimestamps.set(`pending_${to}`, Date.now());
+    sessions.set(`pending_${normalizedTo}`, conv);
+    sessionTimestamps.set(`pending_${normalizedTo}`, Date.now());
     await markCalled(to);
     res.json({ call_sid, status: "queued" });
   } catch (e: any) {
@@ -306,7 +321,7 @@ app.post("/call-leads", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
 
-  const { limit = 10, bypass_hours, market, category, tier } = req.body;
+  const { limit = 3, bypass_hours, market, category, tier } = req.body;
 
   if (!bypass_hours && !isWithinBusinessHours()) {
     return res.status(400).json({ error: "Outside business hours" });
@@ -334,7 +349,8 @@ app.post("/call-leads", async (req, res) => {
       const attempts = await getAttemptCount(lead.phone);
       if (attempts >= 3) { results.push({ phone: lead.phone, status: "skipped_max_attempts" }); continue; }
 
-      const call_sid = await initiateCall(toE164(lead.phone));
+      const normalizedPhone = toE164(lead.phone);
+      const call_sid = await initiateCall(normalizedPhone);
       const siblings = await getSiblingLeads(lead.phone, lead.id);
       const conv = new Conversation({
         company_name: lead.business_name,
@@ -349,14 +365,14 @@ app.post("/call-leads", async (req, res) => {
           recommended_product: s.recommended_product,
         })) : undefined,
       });
-      sessions.set(`pending_${lead.phone}`, conv);
-      sessionTimestamps.set(`pending_${lead.phone}`, Date.now());
+      sessions.set(`pending_${normalizedPhone}`, conv);
+      sessionTimestamps.set(`pending_${normalizedPhone}`, Date.now());
       await markCalled(lead.phone);
       await markLeadCalled(lead.id);
       results.push({ phone: lead.phone, status: "queued", call_sid });
 
-      // Small delay between calls to avoid Twilio rate limits
-      await new Promise(r => setTimeout(r, 500));
+      // 30-second spacing between call initiations — prevents simultaneous spam
+      await new Promise(r => setTimeout(r, 30000));
     } catch (e: any) {
       results.push({ phone: lead.phone, status: `error: ${e.message}` });
     }
@@ -384,6 +400,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="auto" speechModel="phone_call"
           language="en-US" timeout="12">
+    <Pause length="2"/>
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
@@ -438,6 +455,20 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const base2 = process.env.PUBLIC_URL;
   if (!speechResult || speechResult.trim() === "") {
     // Empty gather: audio finished but caller hasn't spoken yet.
+    // Guard: if we responded less than 10s ago, TTS may still be playing — extend gather silently
+    const timeSinceResponse = Date.now() - (conv.lastRespondedAt ?? 0);
+    if (timeSinceResponse < 10000) {
+      console.log("[GATHER] Empty speech within 10s of TTS — extending gather silently (TTS likely still playing)");
+      res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${base2}/gather" method="POST"
+          speechTimeout="auto" speechModel="phone_call"
+          language="en-US" timeout="15">
+  </Gather>
+  <Redirect method="POST">${base2}/no-input</Redirect>
+</Response>`);
+      return;
+    }
     // Do NOT replay the full greeting — that creates the double-greeting loop.
     console.log("[GATHER] Empty speech — stage:", conv.getStage(), "| nudging caller");
     const nudge = conv.getStage() === "greeting"
@@ -446,7 +477,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     res.type("text/xml").send(buildGather(nudge));
     return;
   }
-  if (!isNaN(confidence) && confidence < 0.4 && speechResult.trim().length < 8) {
+  if (!isNaN(confidence) && confidence < 0.5) {
     res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?"));
     return;
   }
@@ -512,13 +543,16 @@ app.post("/respond", validateTwilio, async (req, res) => {
   <Hangup/>
 </Response>`);
     } else {
+      conv.lastRespondedAt = Date.now();
       await setSession(callSid, conv);
       res.type("text/xml").send(buildGather(reply, currentStage));
     }
   } catch (e: any) {
     console.error("[RESPOND] Error:", e.message);
+    const errText = encodeURIComponent("Sorry about that, I'll have someone follow up with you shortly.");
+    const base2 = process.env.PUBLIC_URL ?? "";
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
-<Response><Say>Sorry about that, one moment.</Say><Hangup/></Response>`);
+<Response><Play>${base2}/tts?text=${errText}&amp;stage=end</Play><Hangup/></Response>`);
   }
 });
 
@@ -593,8 +627,14 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
 
     const scores = await conv.scoreCall().catch(() => undefined);
 
+    const mockupDest = mockup.wa_number ?? toNumber;
+    const mockupColors = mockup.brand_colors ?? "not collected";
+    const mockupStyle = mockup.style_pref ?? "not collected";
+    const mockupNote = mockup.wa_number
+      ? `Send free mockup to ${mockupDest} within 24h. Colors: ${mockupColors}. Style: ${mockupStyle}.`
+      : `Mockup requested — WA not captured, use ${toNumber}. Colors: ${mockupColors}. Style: ${mockupStyle}. Follow up to confirm delivery.`;
     const nextAction = mockup.requested
-      ? `Send free mockup to ${mockup.wa_number ?? toNumber} within 24h. Colors: ${mockup.brand_colors ?? "TBD"}. Style: ${mockup.style_pref ?? "TBD"}.`
+      ? mockupNote
       : booked
       ? "Follow up within 24h to confirm proposal or trial start."
       : "No commitment - retry in 3 days if not DNC.";
