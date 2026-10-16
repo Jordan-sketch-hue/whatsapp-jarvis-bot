@@ -319,7 +319,7 @@ app.post("/call-leads", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
 
-  const { limit = 3, bypass_hours, market, category, tier } = req.body;
+  const { limit = 3, bypass_hours, market, category, tier, phone_filter, bypass_dedup } = req.body;
 
   if (!bypass_hours && !isWithinBusinessHours()) {
     return res.status(400).json({ error: "Outside business hours" });
@@ -330,6 +330,7 @@ app.post("/call-leads", async (req, res) => {
   else if (market)     filters.market = String(market); // string = specific intl market
   if (category) filters.category = String(category);
   if (tier)     filters.tier     = parseInt(String(tier)) as 1 | 2 | 3;
+  if (phone_filter) filters.phone = String(phone_filter);
 
   const leads = await getNewLeads(Math.min(limit, 50), filters);
   if (!leads.length) return res.json({ queued: 0, message: "No new leads" });
@@ -341,11 +342,13 @@ app.post("/call-leads", async (req, res) => {
       const onDNC = await isDNC(lead.phone);
       if (onDNC) { results.push({ phone: lead.phone, status: "skipped_dnc" }); continue; }
 
-      const recent = await hasBeenCalledRecently(lead.phone, 24);
-      if (recent) { results.push({ phone: lead.phone, status: "skipped_recent" }); continue; }
+      if (!bypass_dedup) {
+        const recent = await hasBeenCalledRecently(lead.phone, 24);
+        if (recent) { results.push({ phone: lead.phone, status: "skipped_recent" }); continue; }
 
-      const attempts = await getAttemptCount(lead.phone);
-      if (attempts >= 3) { results.push({ phone: lead.phone, status: "skipped_max_attempts" }); continue; }
+        const attempts = await getAttemptCount(lead.phone);
+        if (attempts >= 3) { results.push({ phone: lead.phone, status: "skipped_max_attempts" }); continue; }
+      }
 
       const normalizedPhone = toE164(lead.phone);
       const call_sid = await initiateCall(normalizedPhone);

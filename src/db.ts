@@ -212,6 +212,7 @@ export interface LeadFilters {
   market?: string | null; // null = Jamaica local (market IS NULL); string = intl market code
   category?: string;
   tier?: 1 | 2 | 3;
+  phone?: string; // filter to a specific phone number (for testing / targeted calls)
 }
 
 export async function getNewLeads(limit = 20, filters: LeadFilters = {}): Promise<SalesLead[]> {
@@ -237,7 +238,13 @@ export async function getNewLeads(limit = 20, filters: LeadFilters = {}): Promis
     }
     if (filters.tier) {
       params.push(`%TIER:${filters.tier}%`);
-      clauses.push(`sl.notes ILIKE $${params.length}`);
+      clauses.push(`sl.notes ILIKE ${params.length}`);
+    }
+    if (filters.phone) {
+      // Match exact phone or E.164 without leading +
+      const ph = String(filters.phone).replace(/D/g, '');
+      params.push(`%${ph}%`);
+      clauses.push(`regexp_replace(sl.phone, '[^0-9]', '', 'g') LIKE ${params.length}`);
     }
 
     const res = await pool.query(
