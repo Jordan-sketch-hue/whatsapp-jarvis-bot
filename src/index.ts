@@ -494,11 +494,6 @@ app.post("/gather", validateTwilio, async (req, res) => {
     res.type("text/xml").send(buildGather(nudge));
     return;
   }
-  if (!isNaN(confidence) && confidence < 0.1) {
-    console.log("[GATHER] Low confidence", confidence.toFixed(2), "— re-gathering");
-    res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?", callSid));
-    return;
-  }
 
   conv.silenceStreak = 0;
 
