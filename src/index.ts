@@ -238,24 +238,10 @@ app.post("/amd-status", validateTwilio, async (req, res) => {
   const { CallSid, AnsweredBy } = req.body;
   console.log("[AMD] CallSid:", CallSid, "| AnsweredBy:", AnsweredBy);
 
-  // If it's a machine/voicemail, play a brief voicemail and hang up
+  // machine_start = uncertain (could be slow human pickup or voicemail connecting)
+  // Only hang up on machine_end_* which is definite voicemail — machine_start false-positives real humans
   if (AnsweredBy === "machine_start") {
-    // Voicemail connecting — hang up immediately, do not let IVR audio bleed as speech
-    console.log("[AMD] machine_start — hanging up to prevent voicemail bleed");
-    try {
-      const orgId = process.env.TELNYX_ORG_ID!;
-      const apiKey = process.env.TELNYX_API_KEY!;
-      await fetch(`https://api.telnyx.com/v2/texml/Accounts/${orgId}/Calls/${encodeURIComponent(CallSid)}`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: "Status=completed",
-      });
-    } catch (e: any) {
-      console.error("[AMD] hang up error:", e.message);
-    }
+    console.log("[AMD] machine_start — uncertain, treating as human and continuing");
     res.sendStatus(200);
     return;
   }
@@ -407,7 +393,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
-          speechTimeout="auto" speechModel="phone_call"
+          speechTimeout="1" speechModel="phone_call"
           language="en-US" timeout="12">
     <Pause length="2"/>
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
@@ -471,7 +457,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base2}/gather" method="POST"
-          speechTimeout="auto" speechModel="phone_call"
+          speechTimeout="1" speechModel="phone_call"
           language="en-US" timeout="15">
   </Gather>
   <Redirect method="POST">${base2}/no-input</Redirect>
@@ -811,7 +797,7 @@ function buildGather(say: string, stage?: string, callSid?: string) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
-          speechTimeout="auto" speechModel="phone_call"
+          speechTimeout="1" speechModel="phone_call"
           language="en-US" timeout="12">
     <Play>${base}/tts?text=${encoded}${stageParam}${sidParam}</Play>
   </Gather>
