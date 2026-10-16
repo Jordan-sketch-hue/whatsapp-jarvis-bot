@@ -130,8 +130,8 @@ prospect says objection → classifyObjection() sets type
 Kai: *"Quick note — we have up to 50% off bundle packages right now. If you're thinking about combining services, doing it together now gets you the best deal."*
 
 **Bundle tiers (hardcoded in JST_CATALOG):**
-- Website + App together: **20% OFF both**
-- Website or App + any Marketing Package: **AI Sales Bot included FREE** (saves US$50/mo)
+- Website + App together: **20% OFF both + $10–$20 flat discount at finalization**
+- Website or App + any Marketing Package: **AI Sales Bot included FREE FOR LIFETIME** (saves US$50/mo forever — current promo)
 - Full stack (Website + App + Marketing + AI Chatbot): **up to 50% total savings**
 
 ### Post-Acceptance Upsell (fires after `contact_capture`)
@@ -201,7 +201,7 @@ stage = "hesitation_close"
 
 ### AI Add-ons
 - AI Chatbot: US$50/mo (website-only add-on)
-- AI Sales Agent: US$50/mo standalone | FREE with any Marketing Package
+- AI Sales Agent: US$50/mo standalone | **FREE FOR LIFETIME with any Marketing Package** (current promotion)
 
 ### Marketing Packages (monthly)
 | Tier | Jamaica/Caribbean | US/Canada | UK |
@@ -210,12 +210,13 @@ stage = "hesitation_close"
 | Plus | J$55,000/mo | US$1,000/mo | GBP800/mo |
 | Elite | J$80,000/mo | US$2,000/mo | GBP1,600/mo |
 
-> **AI Sales Bot is ALWAYS included in every marketing package** (no extra charge).
+> **AI Sales Bot is ALWAYS included in every marketing package — FREE FOR LIFETIME** (current promotion — no extra charge, no expiry).
 
-### Active Specials (limited-time)
-1. **Free AI Sales Bot for 3 months** with any website, app, or marketing package signup — US$150 value, available until end of month
-2. **Bundle 50% off**: Full-stack (Website + App + Marketing + AI Chatbot) — maximum savings
-3. **Bundle 20% off**: Website + App together
+### Active Specials (current — 2026-10)
+1. **FREE AI Sales Agent FOR LIFETIME** with any Marketing Package (Starter, Plus, or Elite) — US$50/mo value, no expiry
+2. **Website + App bundle: $10–$20 flat discount** applied at finalization (on top of the 20% bundle rate)
+3. **Bundle 50% off**: Full-stack (Website + App + Marketing + AI Chatbot) — maximum savings
+4. **Bundle 20% off**: Website + App together (plus $10–$20 finalization discount)
 
 ---
 
@@ -335,6 +336,11 @@ curl -X POST "https://ample-exploration-production-ef51.up.railway.app/lead" \
 - **DB is Railway Postgres**: call_logs are stored in Railway Neon DB, NOT Supabase. The `/sales/calls` conglomerate page calls `/call-logs` API.
 
 ## Changelog
+
+### 2026-10-16 (v1.0.25)
+- **Pricing updates**: Website + App bundles now carry an additional $10–$20 flat discount at finalization (on top of 20% bundle rate).
+- **Active promo**: AI Sales Agent is FREE FOR LIFETIME with any Marketing Package (was 3-month promo — now permanent/lifetime for current signups).
+- **Case-sensitivity fix**: All guard regex methods (isPositive, isMockupYes, isHesitation, hasObjection, classifyObjection) now use /i flag — fixes failures on capitalized STT input.
 
 ### 2026-10-16 (v1.0.22)
 - **POST /lead endpoint**: Insert/upsert leads into sales_leads table directly. `place_id` auto-generated as `manual_{phone_digits}`.

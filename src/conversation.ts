@@ -132,15 +132,15 @@ BUNDLE DISCOUNT — LEAD WITH THIS AS YOUR FIRST CLOSING INCENTIVE:
 We currently have up to 50% off when clients bundle services together.
 BUNDLE TIERS:
 - Website + App together: 20% OFF both
-- Website or App + any Marketing Package: AI Sales Bot included FREE (saves US$50/mo)
+- Website or App + any Marketing Package: AI Sales Bot included FREE FOR LIFETIME (saves US$50/mo forever — current promo)
 - Full stack (Website + App + Marketing + AI Chatbot): up to 50% total savings
 USE THIS WHEN: they ask about pricing, seem hesitant, or want multiple services.
 SCRIPT: "One thing worth knowing: we have up to 50% off when you bundle services together. A website and app built together is 20% off right now. Add a marketing package and the AI Sales Bot — which is literally calling you right now — is included free. Full stack bundles can save you up to 50% total. What were you thinking of starting with?"
 
 LIMITED-TIME OFFER (USE THIS AS A CLOSING INCENTIVE — LOSS AVERSION):
-"Right now, any client who moves forward with a website, app, or marketing package gets the AI Sales Bot — exactly what you're talking to right now — included FREE for the first 3 months. That's a US$150 value. After 3 months it's US$50/mo if you want to keep it. This offer is only running until the end of the month."
+"Right now, any client who moves forward with any Marketing Package gets the AI Sales Bot — exactly what you're talking to right now — included FREE FOR LIFE. That's a US$50/mo value, yours at no extra cost, no expiry. This is a current promotion."
 USE THIS WHEN: prospect is hesitating on price, timing, or needs a push. Mention it ONCE as a genuine, time-sensitive incentive. Never offer it twice — it loses its power.
-SCRIPT: "Actually — I should mention, we are running a limited promotion right now. Anyone who gets started with us this month gets the AI Sales Bot included FREE for 3 months. That is the same system you are talking to right now, calling your leads automatically. After 3 months, it is US$50/mo — but right now it is yours free when you move forward. That offer closes at the end of the month."
+SCRIPT: "One thing worth mentioning — we are running a promotion right now. Any client who signs up for a Marketing Package gets the AI Sales Bot included FREE FOR LIFE. That is the same system you are talking to right now, calling your leads automatically. No extra charge, no expiry. You get it as long as you are on the marketing plan."
 
 PAYMENTS ACCEPTED:
 - WiPay (JMD, local): 3.5% + J$130/txn — zero monthly fee, all major JA banks
@@ -708,7 +708,7 @@ NEVER bring up sibling businesses at the start — qualify the first one first, 
         }
 
         if (p.company_name && p.industry && p.has_website === false) {
-          return `${p.company_name} has NO website — completely invisible online. MARKET-AWARE PITCH: Use their market field to pick the right price (JA/Caribbean = J$50K, US = US$650, UK = GBP550). Lead: "Right now, customers searching for ${p.industry} businesses can't find ${p.company_name} online — that's revenue going to competitors. We build custom websites from J$50,000 (JA/Caribbean) or US$650 (US/international) — one-time payment, you own it, live in 1 week. Add an app at the same time and get 20% off both. Can I send you a FREE visual preview of what ${p.company_name}'s site could look like — straight to your WhatsApp within 24 hours?"`;
+          return `${p.company_name} has NO website — completely invisible online. MARKET-AWARE PITCH: Use their market field to pick the right price (JA/Caribbean = J$50K, US = US$650, UK = GBP550). Lead: "Right now, customers searching for ${p.industry} businesses can't find ${p.company_name} online — that's revenue going to competitors. We build custom websites from J$50,000 (JA/Caribbean) or US$650 (US/international) — one-time payment, you own it, live in 1 week. Add an app at the same time and get 20% off both, plus a $10–$20 discount applied at finalization. Can I send you a FREE visual preview of what ${p.company_name}'s site could look like — straight to your WhatsApp within 24 hours?"`;
         }
 
         if (p.company_name && p.industry) {
@@ -806,7 +806,7 @@ NEVER hard close here. Offer callback or one-pager as the exit.`;
 
       case "close": {
         const p = this.prospect;
-        return `BUNDLE CLOSE (if not yet mentioned this call): "Quick note — we have up to 50% off bundle packages right now. If you're thinking about combining services, doing it together now gets you the best deal." Then: "Shall I send you a proposal today?" or "Want to start your free 3-day trial now?"
+        return `BUNDLE CLOSE (if not yet mentioned this call): "Quick note — we have bundle pricing right now. A website and app together is 20% off — and we apply an additional $10 to $20 flat discount once everything is finalized. Add a marketing package and the AI Sales Bot, which is literally calling you right now, is included free for life. Full stack bundles can save you up to 50% total. What were you thinking of starting with?" Then: "Shall I send you a proposal today?" or "Want to start your free 3-day trial now?"
 If they say yes or want to move forward immediately: say "Wonderful — let me grab the best way to reach you so someone from our team can follow up and finalize everything."
 If they hesitate, offer the free hook as fallback:
 - ${p.has_website ? 'Offer: "At minimum, let me send you a FREE visual of what your app or chatbot could look like — no cost, no obligation."' : 'Offer: "At minimum, let me send you a FREE visual preview of your website via WhatsApp — 24 hours, no obligation."'}`;
