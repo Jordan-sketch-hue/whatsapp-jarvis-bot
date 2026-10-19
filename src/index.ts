@@ -6,7 +6,7 @@ import { Pool } from "pg";
 import { runAll } from "./scraper";
 import { runAllIntlMarkets } from "./scraper-intl";
 import { Conversation } from "./conversation";
-import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead, getSiblingLeads, type LeadFilters } from "./db";
+import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead, getSiblingLeads, getSmsLogs, type LeadFilters } from "./db";
 import { initiateCall } from "./call";
 import { sendSms, buildSmsMessage } from "./sms";
 
@@ -988,6 +988,13 @@ app.get("/follow-ups", async (req, res) => {
   }
 });
 
+app.get("/sms-logs", async (req, res) => {
+  const key = req.headers["x-admin-key"];
+  if (key !== process.env.ADMIN_KEY) return res.status(401).json({ error: "unauthorized" });
+  const limit = Math.min(parseInt(String(req.query.limit ?? "100")), 500);
+  const rows = await getSmsLogs(limit);
+  res.json({ sms: rows, total: rows.length });
+});
 app.get("/health", (_, res) => res.json({
   status: "ok",
   sessions: sessions.size,
@@ -998,6 +1005,8 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
+
 
 
 

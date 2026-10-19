@@ -1,4 +1,5 @@
-﻿import "dotenv/config";
+﻿import { logSms } from "./db";
+import "dotenv/config";
 
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY!;
 const FROM_NUMBER   = process.env.FROM_NUMBER!;
@@ -59,3 +60,4 @@ export function buildSmsMessage(params: {
 
   return null;
 }
+

@@ -439,6 +439,21 @@ export async function logMarketingLead(data: MarketingLead): Promise<void> {
   }
 }
 
+export async function logSms(to: string, body: string, result: { ok: boolean; id?: string; error?: string }) {
+  try {
+    await pool.query(
+      `INSERT INTO sms_log (to_number, body, telnyx_id, ok, error) VALUES ($1, $2, $3, $4, $5)`,
+      [to, body, result.id ?? null, result.ok, result.error ?? null]
+    );
+  } catch (e: any) {
+    console.error("[DB] logSms failed:", e.message);
+  }
+}
 
-
-
+export async function getSmsLogs(limit = 100): Promise<any[]> {
+  const r = await pool.query(
+    `SELECT id, to_number, body, telnyx_id, ok, error, sent_at FROM sms_log ORDER BY sent_at DESC LIMIT $1`,
+    [limit]
+  );
+  return r.rows;
+}
