@@ -13,10 +13,6 @@ export async function initiateCall(to: string): Promise<string> {
     ApplicationSid: appSid,
     StatusCallback: `${base}/call-status`,
     StatusCallbackMethod: "POST",
-    MachineDetection: "Enable",
-    AsyncAmd: "true",
-    AsyncAmdStatusCallback: `${base}/amd-status`,
-    AsyncAmdStatusCallbackMethod: "POST",
     Record: "true",
     RecordingChannels: "dual",
   };
