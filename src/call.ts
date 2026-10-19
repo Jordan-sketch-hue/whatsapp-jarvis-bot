@@ -1,6 +1,6 @@
 ﻿import "dotenv/config";
 
-export async function initiateCall(to: string): Promise<string> {
+export async function initiateCall(to: string, options: { no_amd?: boolean } = {}): Promise<string> {
   const apiKey = process.env.TELNYX_API_KEY!;
   const orgId = process.env.TELNYX_ORG_ID!;
   const from = process.env.FROM_NUMBER!;
@@ -39,3 +39,4 @@ export async function initiateCall(to: string): Promise<string> {
   }
   return data.call_control_id ?? data.to ?? "queued";
 }
+

@@ -1,8 +1,8 @@
-import { Pool } from "pg";
+﻿import { Pool } from "pg";
 import type { CallScores } from "./conversation";
 
 if (!process.env.DATABASE_URL) {
-  console.warn("[DB] DATABASE_URL not set â€” call logging will fail. Set it in Railway env vars.");
+  console.warn("[DB] DATABASE_URL not set Ã¢â‚¬â€ call logging will fail. Set it in Railway env vars.");
 }
 
 const pool = new Pool({
@@ -213,6 +213,7 @@ export interface LeadFilters {
   category?: string;
   tier?: 1 | 2 | 3;
   phone?: string; // filter to a specific phone number (for testing / targeted calls)
+  bypass_dedup?: boolean;
 }
 
 export async function getNewLeads(limit = 20, filters: LeadFilters = {}): Promise<SalesLead[]> {
@@ -437,6 +438,7 @@ export async function logMarketingLead(data: MarketingLead): Promise<void> {
     console.error("[DB] logMarketingLead error:", e.message);
   }
 }
+
 
 
 

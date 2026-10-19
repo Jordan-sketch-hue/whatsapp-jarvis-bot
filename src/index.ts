@@ -279,7 +279,7 @@ app.post("/call", async (req, res) => {
     callRateLimiter.set(ip, { count: 1, resetAt: now + 60000 });
   }
 
-  const { to, company_name, industry, bypass_hours } = req.body;
+  const { to, company_name, industry, bypass_hours, no_amd } = req.body;
   if (!to) return res.status(400).json({ error: "to is required" });
 
   // Business hours check (admin can bypass for testing)
@@ -998,6 +998,7 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
 
 
 
