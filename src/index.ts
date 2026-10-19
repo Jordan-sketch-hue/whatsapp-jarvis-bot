@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import twilio from "twilio";
@@ -8,16 +8,17 @@ import { runAllIntlMarkets } from "./scraper-intl";
 import { Conversation } from "./conversation";
 import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead, getSiblingLeads, type LeadFilters } from "./db";
 import { initiateCall } from "./call";
+import { sendSms, buildSmsMessage } from "./sms";
 
 // Normalize any JA/US number to E.164.
-// 876-xxx-xxxx, 658-xxx-xxxx, (876) xxx-xxxx, +1876… all → +1XXXXXXXXXX
+// 876-xxx-xxxx, 658-xxx-xxxx, (876) xxx-xxxx, +1876â€¦ all â†’ +1XXXXXXXXXX
 // Other countries: strip spaces/dashes, ensure leading +
 function toE164(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   // NANP Jamaica/US: 10 digits or 11 starting with 1
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  // Already has country code (>11 digits) — just ensure + prefix
+  // Already has country code (>11 digits) â€” just ensure + prefix
   if (digits.length > 11) return `+${digits}`;
   // fallback: return raw if we can't confidently normalize
   return raw.startsWith("+") ? raw : `+${digits}`;
@@ -64,19 +65,19 @@ async function removeSession(callSid: string): Promise<void> {
   await deleteCallSession(callSid);
 }
 
-// Simple in-memory TTS cache (text â†’ MP3 buffer, max 100 entries, 1hr TTL)
+// Simple in-memory TTS cache (text Ã¢â€ â€™ MP3 buffer, max 100 entries, 1hr TTL)
 const ttsCache = new Map<string, { buf: Buffer; ts: number }>();
 const TTS_CACHE_TTL_MS = 60 * 60 * 1000;
 
 // Simple rate limiter for /call endpoint (max 20 triggers/minute per IP)
 const callRateLimiter = new Map<string, { count: number; resetAt: number }>();
 
-// â"€â"€â"€ Schema init â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Schema init Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 ensureSchema().then(() => console.log("[DB] Schema ready")).catch(e => console.error("[DB] Schema error:", e.message));
 
 // Pre-warm TTS cache with generic greeting so first call has no cold-start silence
 const FILLER_TEXTS = ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see.", "Hello? Can you hear me alright?"];
-const GENERIC_GREETING = `Hi, this is Kai calling from J Supreme Tech — we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
+const GENERIC_GREETING = `Hi, this is Kai calling from J Supreme Tech â€” we're an agency that specializes in AI sales agents and chatbots, websites, apps, and digital marketing. Quick heads up, this call may be recorded. How are you doing today?`;
 setTimeout(async () => {
   try {
     const key = process.env.RIME_API_KEY;
@@ -103,7 +104,7 @@ setTimeout(async () => {
   } catch (e: any) { console.error("[TTS] Pre-warm failed:", e.message); }
 }, 3000);
 
-// â"€â"€â"€ Session cleanup - prune stale sessions every 5 minutes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Session cleanup - prune stale sessions every 5 minutes Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000; // 30 min
   for (const [sid, ts] of sessionTimestamps.entries()) {
@@ -139,10 +140,10 @@ function validateTwilio(req: express.Request, res: express.Response, next: expre
   next();
 }
 
-// â"€â"€â"€ Jamaica business hours check (AST = UTCâˆ’5, Mon-Sat 09:00-18:00) â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Jamaica business hours check (AST = UTCÃ¢Ë†â€™5, Mon-Sat 09:00-18:00) Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 function isWithinBusinessHours(): boolean {
   const now = new Date();
-  // Jamaica stays on UTCâˆ’5 year-round (no DST)
+  // Jamaica stays on UTCÃ¢Ë†â€™5 year-round (no DST)
   const jamaicaOffset = -5 * 60;
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
   const ja = new Date(utcMs + jamaicaOffset * 60000);
@@ -151,7 +152,7 @@ function isWithinBusinessHours(): boolean {
   return day >= 1 && day <= 6 && hour >= 9 && hour < 18;
 }
 
-// â"€â"€â"€ Rime AI TTS endpoint â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Rime AI TTS endpoint Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 const STAGE_SPEAKER: Record<string, string> = {
   greeting:          "godfrey",
   qualify:           "godfrey",
@@ -236,15 +237,15 @@ app.get("/tts", async (req, res) => {
   }
 });
 
-// â"€â"€â"€ AMD callback - handle answering machine detection â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ AMD callback - handle answering machine detection Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/amd-status", validateTwilio, async (req, res) => {
   const { CallSid, AnsweredBy } = req.body;
   console.log("[AMD] CallSid:", CallSid, "| AnsweredBy:", AnsweredBy);
 
   // machine_start = uncertain (could be slow human pickup or voicemail connecting)
-  // Only hang up on machine_end_* which is definite voicemail — machine_start false-positives real humans
+  // Only hang up on machine_end_* which is definite voicemail â€” machine_start false-positives real humans
   if (AnsweredBy === "machine_start") {
-    console.log("[AMD] machine_start — uncertain, treating as human and continuing");
+    console.log("[AMD] machine_start â€” uncertain, treating as human and continuing");
     res.sendStatus(200);
     return;
   }
@@ -262,7 +263,7 @@ app.post("/amd-status", validateTwilio, async (req, res) => {
   }
 });
 
-// â"€â"€â"€ Outbound call trigger â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Outbound call trigger Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/call", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
@@ -301,7 +302,7 @@ app.post("/call", async (req, res) => {
 
   try {
     const normalizedTo = toE164(to);
-    const call_sid = await initiateCall(normalizedTo);
+    const call_sid = await initiateCall(normalizedTo, { no_amd: !!no_amd });
     const conv = new Conversation(
       await getProspect(to) ?? { company_name, industry }
     );
@@ -314,7 +315,7 @@ app.post("/call", async (req, res) => {
   }
 });
 
-// â"€â"€â"€ Batch call new scraper leads â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Batch call new scraper leads Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/call-leads", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
@@ -331,6 +332,7 @@ app.post("/call-leads", async (req, res) => {
   if (category) filters.category = String(category);
   if (tier)     filters.tier     = parseInt(String(tier)) as 1 | 2 | 3;
   if (phone_filter) filters.phone = String(phone_filter);
+  if (bypass_dedup) filters.bypass_dedup = true;
 
   const leads = await getNewLeads(Math.min(limit, 50), filters);
   if (!leads.length) return res.json({ queued: 0, message: "No new leads" });
@@ -372,7 +374,7 @@ app.post("/call-leads", async (req, res) => {
       await markLeadCalled(lead.id);
       results.push({ phone: lead.phone, status: "queued", call_sid });
 
-      // 30-second spacing between call initiations — prevents simultaneous spam
+      // 30-second spacing between call initiations â€” prevents simultaneous spam
       await new Promise(r => setTimeout(r, 30000));
     } catch (e: any) {
       results.push({ phone: lead.phone, status: `error: ${e.message}` });
@@ -382,7 +384,7 @@ app.post("/call-leads", async (req, res) => {
   res.json({ queued: results.filter(r => r.status === "queued").length, results });
 });
 
-// â"€â"€â"€ TwiML entry - play greeting immediately, then gather â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ TwiML entry - play greeting immediately, then gather Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.all("/twiml", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || req.query.CallSid as string || "unknown";
   const to = req.body.To || req.query.To as string || "";
@@ -399,8 +401,8 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
-          speechTimeout="1" speechModel="phone_call"
-          language="en-US" timeout="12">
+          speechTimeout="3" speechModel="phone_call"
+          language="en-US" timeout="15">
     <Pause length="2"/>
     <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
@@ -408,7 +410,7 @@ app.all("/twiml", validateTwilio, async (req, res) => {
 </Response>`);
 });
 
-// â"€â"€â"€ /intro - prospect said hello, deliver greeting â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ /intro - prospect said hello, deliver greeting Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/intro", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   const heard = (req.body.SpeechResult || "").trim();
@@ -425,7 +427,7 @@ app.post("/intro", validateTwilio, async (req, res) => {
   res.type("text/xml").send(buildGather(greeting, "greeting", callSid));
 });
 
-// â"€â"€â"€ /intro-silence - no speech detected at connect, greet anyway â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ /intro-silence - no speech detected at connect, greet anyway Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/intro-silence", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid || "unknown";
   console.log("[INTRO-SILENCE] No speech at connect, greeting anyway. CallSid:", callSid);
@@ -439,7 +441,7 @@ app.post("/intro-silence", validateTwilio, async (req, res) => {
   res.type("text/xml").send(buildGather(conv.getGreeting(), "greeting"));
 });
 
-// ─── Handle speech input - return filler instantly, process LLM in background ─
+// â”€â”€â”€ Handle speech input - return filler instantly, process LLM in background â”€
 app.post("/gather", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid;
   const speechResult = req.body.SpeechResult || "";
@@ -454,7 +456,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
     const cur = speechResult.toLowerCase();
     if (prev.includes(cur) || cur.includes(prev) || prev === cur) {
       console.log("[GATHER] Dedup: discarding earlier event, keeping latest speech:", speechResult.slice(0, 60));
-      // Update to latest text but do NOT set it as processed yet — let this event proceed
+      // Update to latest text but do NOT set it as processed yet â€” let this event proceed
     }
   }
   if (speechResult) lastGather.set(callSid, { text: speechResult, ts: Date.now() });
@@ -469,10 +471,10 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const base2 = process.env.PUBLIC_URL;
   if (!speechResult || speechResult.trim() === "") {
     // Empty gather: audio finished but caller hasn't spoken yet.
-    // Guard: if we responded less than 10s ago, TTS may still be playing — extend gather silently
+    // Guard: if we responded less than 10s ago, TTS may still be playing â€” extend gather silently
     const timeSinceResponse = Date.now() - (conv.lastRespondedAt ?? 0);
     if (timeSinceResponse < 10000) {
-      console.log("[GATHER] Empty speech within 10s of TTS — extending gather silently (TTS likely still playing)");
+      console.log("[GATHER] Empty speech within 10s of TTS â€” extending gather silently (TTS likely still playing)");
       res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base2}/gather" method="POST"
@@ -483,16 +485,16 @@ app.post("/gather", validateTwilio, async (req, res) => {
 </Response>`);
       return;
     }
-    // Do NOT replay the full greeting — that creates the double-greeting loop.
-    console.log("[GATHER] Empty speech — stage:", conv.getStage(), "| nudging caller");
+    // Do NOT replay the full greeting â€” that creates the double-greeting loop.
+    console.log("[GATHER] Empty speech â€” stage:", conv.getStage(), "| nudging caller");
     const nudge = conv.getStage() === "greeting"
       ? "Hello? Can you hear me alright?"
-      : "Sorry, I didn't quite catch that — could you say that again?";
+      : "Sorry, I didn't quite catch that â€” could you say that again?";
     res.type("text/xml").send(buildGather(nudge));
     return;
   }
   if (!isNaN(confidence) && confidence < 0.5) {
-    res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that — could you say that again?", callSid));
+    res.type("text/xml").send(buildGather("Sorry, I didn't quite catch that â€” could you say that again?", callSid));
     return;
   }
 
@@ -503,7 +505,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
   const responsePromise = conv.respond(speechResult);
   pendingResponses.set(callSid, responsePromise);
 
- // Play Rime TTS filler (godfrey voice) while LLM processes — avoids robot <Say> voice clash
+ // Play Rime TTS filler (godfrey voice) while LLM processes â€” avoids robot <Say> voice clash
   const base = process.env.PUBLIC_URL;
   const fillers = ["Mm-hmm.", "Sure.", "Got it.", "Right.", "I see."];
   const filler = encodeURIComponent(fillers[Math.floor(Math.random() * fillers.length)]);
@@ -514,7 +516,7 @@ app.post("/gather", validateTwilio, async (req, res) => {
 </Response>`);
 });
 
-// â"€â"€â"€ Respond - await the pending LLM promise and return real TwiML â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Respond - await the pending LLM promise and return real TwiML Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/respond", validateTwilio, async (req, res) => {
   const callSid = (req.query.callSid || req.body.CallSid) as string;
   const base = process.env.PUBLIC_URL;
@@ -533,7 +535,7 @@ app.post("/respond", validateTwilio, async (req, res) => {
     if (!ended) {
       const startedAt = callStartTimes.get(callSid);
       if (startedAt !== undefined && Date.now() - startedAt > 150_000) {
-        reply = reply + " I appreciate your time — I'll follow up with more details shortly. Have a great day!";
+        reply = reply + " I appreciate your time â€” I'll follow up with more details shortly. Have a great day!";
         ended = true;
       }
     }
@@ -570,7 +572,7 @@ app.post("/respond", validateTwilio, async (req, res) => {
   }
 });
 
-// â"€â"€â"€ No input â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ No input Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/no-input", validateTwilio, async (req, res) => {
   const callSid = req.body.CallSid;
   const conv = await getSession(callSid);
@@ -599,7 +601,7 @@ app.post("/no-input", validateTwilio, async (req, res) => {
 </Response>`);
 });
 
-// â"€â"€â"€ Call status callback â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Call status callback Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/call-status", validateTwilio, async (req, res) => {
   const { CallSid, CallStatus, To, CallDuration } = req.body;
   console.log("[STATUS]", CallSid, CallStatus, `${CallDuration}s`);
@@ -615,6 +617,10 @@ app.post("/call-status", validateTwilio, async (req, res) => {
       booked_followup: false,
       duration_seconds: duration,
     });
+    if (CallStatus === "no-answer" && To) {
+      const smsBody = buildSmsMessage({ stage: "no_answer", booked: false, mockupRequested: false });
+      if (smsBody) sendSms(To, smsBody).catch(() => {});
+    }
   } else if (CallStatus === "completed") {
     const conv = await getSession(CallSid);
     if (conv) {
@@ -626,7 +632,7 @@ app.post("/call-status", validateTwilio, async (req, res) => {
   res.sendStatus(200);
 });
 
-// â"€â"€â"€ Finalize: score + log + notify â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Finalize: score + log + notify Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 async function finalizeCall(callSid: string, toNumber: string, conv: Conversation, duration: number) {
   try {
     const transcript = conv.getTranscript();
@@ -646,7 +652,7 @@ async function finalizeCall(callSid: string, toNumber: string, conv: Conversatio
     const mockupStyle = mockup.style_pref ?? "not collected";
     const mockupNote = mockup.wa_number
       ? `Send free mockup to ${mockupDest} within 24h. Colors: ${mockupColors}. Style: ${mockupStyle}.`
-      : `Mockup requested — WA not captured, use ${toNumber}. Colors: ${mockupColors}. Style: ${mockupStyle}. Follow up to confirm delivery.`;
+      : `Mockup requested â€” WA not captured, use ${toNumber}. Colors: ${mockupColors}. Style: ${mockupStyle}. Follow up to confirm delivery.`;
     const nextAction = mockup.requested
       ? mockupNote
       : booked
@@ -759,7 +765,7 @@ async function notifyJordan(data: {
 
   const sends: Promise<any>[] = [];
 
-  // Jarvis WA bot (Baileys — same Railway project, auto-injected URL)
+  // Jarvis WA bot (Baileys â€” same Railway project, auto-injected URL)
   const waSendSecret = process.env.WA_SEND_SECRET;
   const jordanJid = process.env.JORDAN_WA_NUMBER;
   if (webhookUrl && waSendSecret && jordanJid) {
@@ -785,10 +791,10 @@ async function notifyJordan(data: {
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
     const subject = data.booked
-      ? `HOT LEAD — ${data.toNumber} booked a follow-up`
+      ? `HOT LEAD â€” ${data.toNumber} booked a follow-up`
       : data.mockup.requested
-      ? `Mockup Requested — ${data.toNumber}`
-      : `Kai Call Review — ${data.toNumber} | ${data.stage}`;
+      ? `Mockup Requested â€” ${data.toNumber}`
+      : `Kai Call Review â€” ${data.toNumber} | ${data.stage}`;
     const html = `<pre style="font-family:monospace;font-size:14px">${message.replace(/\*/g, "")}</pre>`;
     sends.push(
       fetch("https://api.resend.com/emails", {
@@ -807,7 +813,7 @@ async function notifyJordan(data: {
   await Promise.allSettled(sends);
 }
 
-// â"€â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Helpers Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 function buildGather(say: string, stage?: string, callSid?: string) {
   const base = process.env.PUBLIC_URL;
   const encoded = encodeURIComponent(say);
@@ -816,8 +822,8 @@ function buildGather(say: string, stage?: string, callSid?: string) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${base}/gather" method="POST"
-          speechTimeout="1" speechModel="phone_call"
-          language="en-US" timeout="12">
+          speechTimeout="3" speechModel="phone_call"
+          language="en-US" timeout="15">
     <Play>${base}/tts?text=${encoded}${stageParam}${sidParam}</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
@@ -825,7 +831,7 @@ function buildGather(say: string, stage?: string, callSid?: string) {
 }
 
 
-// â"€â"€â"€ Scrape leads from OpenStreetMap â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ Scrape leads from OpenStreetMap Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/scrape", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
@@ -835,17 +841,17 @@ app.post("/scrape", async (req, res) => {
   res.json({ started: true, message: "Jamaica scraper running in background" });
 });
 
-// ─── Scrape international leads (Miami, Atlanta, NYC etc.) ───────────────────
+// â”€â”€â”€ Scrape international leads (Miami, Atlanta, NYC etc.) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/scrape-intl", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
 
   const { limit } = req.body as { limit?: number };
   runAllIntlMarkets(limit ?? 40).catch((e: unknown) => console.error("[SCRAPE-INTL]", (e as Error).message));
-  res.json({ started: true, message: "International scraper running — Miami, Atlanta, NYC etc. No-website businesses only." });
+  res.json({ started: true, message: "International scraper running â€” Miami, Atlanta, NYC etc. No-website businesses only." });
 });
 
-// â"€â"€â"€ List leads with stats â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ List leads with stats Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 app.post("/lead", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
@@ -915,7 +921,7 @@ app.get("/leads", async (req, res) => {
   }
 });
 
-// ── Call logs: full outcome history ──────────────────────────────────────────
+// â”€â”€ Call logs: full outcome history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/call-logs", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
@@ -951,7 +957,7 @@ app.get("/call-logs", async (req, res) => {
   }
 });
 
-// ── Follow-ups: hot/warm leads from marketing_leads ──────────────────────────
+// â”€â”€ Follow-ups: hot/warm leads from marketing_leads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/follow-ups", async (req, res) => {
   if (req.headers["x-admin-key"] !== process.env.ADMIN_KEY)
     return res.status(401).json({ error: "unauthorized" });
@@ -992,6 +998,7 @@ app.get("/health", (_, res) => res.json({
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Kai AI Sales Bot running on port ${PORT}`));
+
 
 
 
