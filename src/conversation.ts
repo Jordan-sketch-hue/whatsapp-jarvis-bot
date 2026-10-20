@@ -247,9 +247,9 @@ export const OBJECTION_RESPONSES: Record<NonNullable<ObjectionType>, { reframe: 
     close: "What's your WhatsApp? I'll drop you three examples in the next ten minutes so you can judge for yourself.",
   },
   no_need: {
-    reframe: "I hear that — and I'm not going to push you on something that doesn't fit. But let me ask: are customers finding you online right now, or mostly through word of mouth? Because word of mouth is great — until it's not.",
-    social_proof: "The businesses we work with that said 'we don't need it' — six months later they're asking why they waited. A competitor opened nearby, or a lockdown happened, or the referrals dried up. The website was there when nothing else was.",
-    close: "I'm not saying you need everything we offer. Even just a basic site with your hours, location, and a contact number — that alone changes how customers find you.",
+    reframe: "I hear you — and I'm not going to push you. But let me be honest with you for a second, not to pressure you, just because it's the truth. A year from now, the business down the road that just built their site and started running ads is showing up every time someone searches for what you do. They're capturing leads at midnight when no one's answering a phone. Their customers are booking without calling. You're still relying on whoever already knows you. That gap gets wider every month, not smaller.",
+    social_proof: "I've had this exact conversation with business owners who called back 12 to 18 months later. A competitor opened nearby. The referrals slowed after a rough season. One told me straight: 'I was getting by on word of mouth — then things got tight and I had nothing to fall back on. No site, no email list, no way to reach my own customers.' The businesses that survived were already in the ecosystem. Not because they were better — because they were findable.",
+    close: "Ten years from now every serious business will have an automated lead system, a mobile presence, and customers who book without calling — that's not speculation, it's already true for the ones pulling ahead right now. The question is whether you build that foundation today at a fraction of what it costs later, or you watch it happen around you. What would it take to just get one piece started?",
   },
   past_experience: {
     reframe: "That's actually really important context — and honestly, most of the clients we work with now came to us after a bad experience somewhere else. The difference usually comes down to communication and whether the agency actually knows your market. We're Jamaica-based and we build for Caribbean businesses specifically, not generic templates.",
@@ -306,7 +306,8 @@ function detectIntent(text: string): IntentKey | null {
   if (/\b(sign me up|book|let.s do it|move forward|get started|i.m in|i.m interested|yes please|sounds good|let.s go)\b/.test(t)) return "booking";
   if (/\b(can.t afford|too expensive|not right now|too busy|need to think|talk to my|not sure yet|maybe later)\b/.test(t)) return "objection";
   if (/\b(what do you offer|tell me more|what services|what can you do|what.s included|what do you build)\b/.test(t)) return "pitch_request";
-  if (/\b(not interested|remove me|stop calling|take me off|don.t call|goodbye|bye now|no thank you|no thanks)\b/.test(t)) return "end_call";
+  if (/\b(remove me|stop calling|take me off|don.t call|goodbye|bye now)\b/.test(t)) return "end_call";
+  if (/\b(not interested|no thanks|no thank you|don.t need it|don.t need this|we don.t need|i don.t need|not for us|not for me|not relevant)\b/.test(t)) return "objection";
   if (/\b(mockup|design|sample|show me|see what it looks|see an example)\b/.test(t)) return "mockup_request";
   return null;
 }
@@ -833,8 +834,18 @@ PRICE on marketing: "Starter is J$30K/mo — IG + Facebook, reels, ads, AI calli
 TIMING: Use loss framing — "Websites take 30-90 days to rank on Google. Starting now means you're visible when others are still waiting." Lock the calendar spot, start when they're ready.
 AUTHORITY (wrong person): Summary in one sentence → try to transfer NOW → get their direct contact → leave JST contact → send one-pager via WhatsApp. NEVER end the call without a path to the decision-maker.
 TRUST: "Let me send three live sites we built for [their category] businesses right now — judge for yourself. What's your WhatsApp?"
-NO NEED (website): "Are customers finding you on Google right now? Our Marketing Starter (JA J$30K/mo) fixes visibility AND includes the AI calling bot — no website needed."
-NO NEED (marketing): "Got it — is growing your customer base a goal right now?" Probe → pivot to AI Chatbot/SaaS if yes → schedule follow-up if no.
+NO NEED — FUTURE PROJECTION CLOSE (use this every time, no exceptions):
+Step 1 — Acknowledge without caving: "I hear you — I'm not going to push you on anything."
+Step 2 — Deliver the 1-year truth: "But here's what I see a year from now. The business in your category that built their site, started running ads, and added an automated lead bot — they're showing up every time someone searches. They're capturing enquiries at 2am. Their customers are booking without calling. The gap between them and you compounds every single month."
+Step 3 — Pick the industry-specific scenario and say it out loud:
+  RESTAURANT: "Someone searches 'restaurant near me' on a Saturday night — if you're not showing up, that table goes to whoever does. That's not a maybe. That's happening right now."
+  SALON/BEAUTY/SPA: "A client wants to book at 11pm. No website, no booking link — they scroll to the next salon. That appointment is gone before you wake up."
+  LAWYER/PROFESSIONAL: "A referred client Googles you before calling. Nothing comes up, or what comes up looks dated. They call the firm whose site looks established. You never even knew they were looking."
+  RETAIL/PRODUCT: "Right now there are people searching for exactly what you sell in your area. If your name isn't showing up, they're buying from someone else. Every day."
+  ANY SERVICE/TRADE: "You're getting some leads, but without an automated follow-up system, the ones who don't get a callback in the first hour go with whoever calls them back first. That's revenue leaking out every week."
+Step 4 — The 10-year frame: "Ten years from now every competitive business will have automated lead capture, a mobile presence, and a marketing system running around the clock. The ones being built on that foundation right now are the ones that will still be here. The question isn't whether this matters — it's whether you start now or later."
+Step 5 — Soft truth close: "I'm not saying you'll fail without it. I'm saying the distance between where you are and where you need to be is growing. We can close that gap in a week. What would it take to get one thing started?"
+AFTER the projection: always offer the free mockup or a no-commitment one-pager as the next step. NEVER end without a path forward.
 UPSELL PATH: website rejected → marketing | marketing rejected → AI Bot standalone (US$50/mo) | all rejected → free mockup/one-pager → follow-up scheduled. NEVER end without next step.`;
       }
 
