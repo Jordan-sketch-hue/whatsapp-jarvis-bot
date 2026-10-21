@@ -100,6 +100,16 @@ export async function ensureSchema() {
       called_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS sms_log (
+      id SERIAL PRIMARY KEY,
+      to_number TEXT NOT NULL,
+      body TEXT,
+      direction TEXT DEFAULT 'outbound',
+      telnyx_id TEXT,
+      ok BOOLEAN DEFAULT FALSE,
+      error TEXT,
+      sent_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 }
 

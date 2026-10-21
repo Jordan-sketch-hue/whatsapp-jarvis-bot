@@ -24,10 +24,14 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
     if (!res.ok) {
       const err = data?.errors?.[0]?.detail ?? data?.message ?? res.status;
       console.error("[SMS] Send failed:", err);
-      return { ok: false, error: String(err) };
+      const failResult = { ok: false, error: String(err) };
+      logSms(to, body, failResult).catch(() => {});
+      return failResult;
     }
-    console.log("[SMS] Sent to", to, "| id:", data?.data?.id);
-    return { ok: true, id: data?.data?.id };
+    const result = { ok: true, id: data?.data?.id };
+    console.log("[SMS] Sent to", to, "| id:", result.id);
+    logSms(to, body, result).catch(() => {});
+    return result;
   } catch (e: any) {
     console.error("[SMS] Exception:", e.message);
     return { ok: false, error: e.message };

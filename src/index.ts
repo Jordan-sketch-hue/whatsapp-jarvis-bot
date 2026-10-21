@@ -6,7 +6,7 @@ import { Pool } from "pg";
 import { runAll } from "./scraper";
 import { runAllIntlMarkets } from "./scraper-intl";
 import { Conversation } from "./conversation";
-import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead, getSiblingLeads, getSmsLogs, type LeadFilters } from "./db";
+import { logCall, isDNC, markDNC, getProspect, markCalled, hasBeenCalledRecently, ensureSchema, getAttemptCount, getNewLeads, markLeadCalled, saveCallSession, loadCallSession, deleteCallSession, getLastCallContext, logMarketingLead, getSiblingLeads, getSmsLogs, logSms, type LeadFilters } from "./db";
 import { initiateCall } from "./call";
 import { sendSms, buildSmsMessage } from "./sms";
 
@@ -995,6 +995,34 @@ app.get("/sms-logs", async (req, res) => {
   const rows = await getSmsLogs(limit);
   res.json({ sms: rows, total: rows.length });
 });
+
+// Telnyx inbound SMS webhook — configure this URL in Telnyx portal > Messaging > Webhooks
+app.post('/sms/inbound', async (req, res) => {
+  res.sendStatus(200); // always 200 first so Telnyx doesn't retry
+  try {
+    const event = req.body?.data;
+    if (event?.event_type !== 'message.received') return;
+    const msg = event?.payload;
+    const from = msg?.from?.phone_number ?? msg?.from;
+    const text = msg?.text ?? '';
+    const telnyx_id = msg?.id ?? event?.id ?? null;
+    console.log('[SMS-IN] From:', from, '| Text:', text);
+    await logSms(from, text, { ok: true, id: telnyx_id ?? undefined });
+  } catch (e: any) {
+    console.error('[SMS-IN] Error:', e.message);
+  }
+});
+
+// Admin: send a test SMS
+app.post('/admin/send-sms', async (req, res) => {
+  if (req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(401).json({ error: 'unauthorized' });
+  const { to, message } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'to and message required' });
+  const result = await sendSms(to, message);
+  res.json(result);
+});
+
 app.get("/health", (_, res) => res.json({
   status: "ok",
   sessions: sessions.size,
