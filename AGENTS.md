@@ -292,8 +292,12 @@ Phone `+16582182282` has ONE slot in `sales_leads` (upsert by phone).
 Run `/call-leads` with `phone_filter` to call yourself using whichever scenario is loaded.
 
 ### Trigger call (uses current lead data)
+> First run a scenario curl below to set the lead, THEN run this to dial.
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads   -H "x-admin-key: jst-sales-bot-2026"   -H "Content-Type: application/json"   -d '{"limit":1,"bypass_hours":true,"phone_filter":"+16582182282"}'
+curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads \
+  -H "x-admin-key: jst-sales-bot-2026" \
+  -H "Content-Type: application/json" \
+  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+16582182282"}'
 ```
 
 ### Swap scenarios (overwrite the lead, then trigger)
@@ -344,20 +348,21 @@ Bot does: leads with AI bot pitch → FREE with marketing package
 ```
 
 ## Trigger Test Calls
+
+> ⚠️ **CRITICAL:** `/lead` only writes to the database — it does NOT dial. You MUST call `/call-leads` (or `/call`) afterward to trigger an actual Telnyx outbound call. Calling `/lead` alone is why calls never ring.
+
+### Pattern A — Cold call (no lead context)
 ```bash
-# Cold call (no lead data — Kai doesn't know the company)
+# Dials immediately — Kai doesn't know the company, qualifies from scratch
 curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call" \
   -H "Content-Type: application/json" \
   -H "x-admin-key: jst-sales-bot-2026" \
   -d '{"to":"+16582182282","bypass_hours":true,"bypass_dedup":true}'
+```
 
-# Lead call (pulls Jordan's entry from sales_leads — Kai knows company/industry)
-curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call-leads" \
-  -H "Content-Type: application/json" \
-  -H "x-admin-key: jst-sales-bot-2026" \
-  -d '{"limit":1,"bypass_hours":true}'
-
-# Add Jordan as a test lead
+### Pattern B — Lead call (two steps — insert THEN dial)
+```bash
+# Step 1: Insert/overwrite the lead (DB write only — NO call yet)
 curl -X POST "https://ample-exploration-production-ef51.up.railway.app/lead" \
   -H "Content-Type: application/json" \
   -H "x-admin-key: jst-sales-bot-2026" \
@@ -368,8 +373,14 @@ curl -X POST "https://ample-exploration-production-ef51.up.railway.app/lead" \
     "recommended_product":"AI Sales Bot + Website Revamp",
     "has_website":true,
     "notes":"FOUNDER TEST — Jordan Morris, CEO. TIER:2. Already has website; pitch App + Elite Marketing + AI Bot expansion.",
-    "market":null
+    "market":"US"
   }'
+
+# Step 2: Dial the lead (this is what actually triggers the Telnyx call)
+curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call-leads" \
+  -H "Content-Type: application/json" \
+  -H "x-admin-key: jst-sales-bot-2026" \
+  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+16582182282"}'
 ```
 
 ## Known Gotchas

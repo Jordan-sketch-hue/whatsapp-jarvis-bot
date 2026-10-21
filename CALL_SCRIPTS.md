@@ -6,18 +6,21 @@ These scripts are wired into the bot's conversation logic. The bot pulls `has_we
 
 ## TRIGGER COMMANDS
 
+**IMPORTANT: `/lead` only inserts into DB — it does NOT call. Always follow with `/call-leads` or `/call`.**
+
 ```bash
-# Cold call (no lead data)
+# Cold call (no lead data) — dials immediately
 curl -X POST https://ample-exploration-production-ef51.up.railway.app/call \
   -H "x-admin-key: jst-sales-bot-2026" \
   -H "Content-Type: application/json" \
   -d '{"to":"+16582182282","bypass_hours":true,"bypass_dedup":true}'
 
-# Lead call (uses lead sheet data)
+# Lead call — Step 1: insert lead, Step 2: dial
+# Step 2 (dial):
 curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads \
   -H "x-admin-key: jst-sales-bot-2026" \
   -H "Content-Type: application/json" \
-  -d '{"limit":1,"bypass_hours":true,"phone_filter":"+16582182282"}'
+  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+16582182282"}'
 ```
 
 ---

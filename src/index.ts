@@ -400,11 +400,11 @@ app.all("/twiml", validateTwilio, async (req, res) => {
   const base = process.env.PUBLIC_URL;
   res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Pause length="1"/>
+  <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   <Gather input="speech" action="${base}/gather" method="POST"
           speechTimeout="3" speechModel="phone_call"
           language="en-US" timeout="15">
-    <Pause length="2"/>
-    <Play>${base}/tts?text=${encodeURIComponent(conv.getGreeting())}&amp;stage=greeting</Play>
   </Gather>
   <Redirect method="POST">${base}/no-input</Redirect>
 </Response>`);
