@@ -1,4 +1,4 @@
-﻿import { logSms } from "./db";
+import { logSms } from "./db";
 import "dotenv/config";
 
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY!;
@@ -47,19 +47,19 @@ export function buildSmsMessage(params: {
   const biz = params.businessName ? ` ${params.businessName}` : "";
 
   if (params.booked) {
-    return `Hi${biz}, this is Kai from J Supreme Tech. Great speaking with you! I will be in touch shortly to get you started with your free trial. Reply STOP to opt out.`;
+    return `Hi${biz}, this is Kai from J Supreme Tech. Great speaking with you! We handle websites, social media management + digital marketing. I will be in touch shortly to get you started. Reply STOP to opt out.`;
   }
 
   if (params.mockupRequested) {
-    return `Hi${biz}, this is Kai from J Supreme Tech. Your free website mockup is on its way within 24 hours. Any questions? Visit jsupremetech.online. Reply STOP to opt out.`;
+    return `Hi${biz}, this is Kai from J Supreme Tech. Your free website mockup is on its way within 24 hours. We also do social media management + digital marketing. Visit jsupremetech.online. Reply STOP to opt out.`;
   }
 
   if (["close", "schedule", "objection_address"].includes(params.stage)) {
-    return `Hi${biz}, this is Kai from J Supreme Tech. Thanks for the chat - I will follow up with more details. Visit jsupremetech.online to explore our products. Reply STOP to opt out.`;
+    return `Hi${biz}, this is Kai from J Supreme Tech. Thanks for the chat - we build websites, manage social media + run digital marketing for businesses like yours. Visit jsupremetech.online. Reply STOP to opt out.`;
   }
 
   if (params.stage === "no_answer") {
-    return `Hi, this is Kai from J Supreme Tech. I tried reaching you about a free digital tool for your business. Visit jsupremetech.online or reply here. Reply STOP to opt out.`;
+    return `Hi, this is Kai from J Supreme Tech. I tried reaching you about websites, social media management + digital marketing for your business. Visit jsupremetech.online or reply here. Reply STOP to opt out.`;
   }
 
   return null;
