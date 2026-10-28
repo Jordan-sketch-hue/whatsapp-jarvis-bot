@@ -2,6 +2,12 @@
 
 These scripts are wired into the bot's conversation logic. The bot pulls `has_website`, `category`, `business_name`, and `recommended_product` from the `sales_leads` table to decide which path to take.
 
+> **Safety:** the API commands below can trigger real outbound calls or mutate
+> live lead records. Do not run them against production without explicit
+> authorization. Use a staging deployment and a synthetic test number. The
+> phone values below are placeholders; never substitute a real person's number
+> without approval.
+
 ---
 
 ## TRIGGER COMMANDS
@@ -10,17 +16,17 @@ These scripts are wired into the bot's conversation logic. The bot pulls `has_we
 
 ```bash
 # Cold call (no lead data) — dials immediately
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/call \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/call \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"to":"+16582182282","bypass_hours":true,"bypass_dedup":true}'
+  -d '{"to":"+1XXXXXXXXXX","bypass_hours":true,"bypass_dedup":true}'
 
 # Lead call — Step 1: insert lead, Step 2: dial
 # Step 2 (dial):
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/call-leads \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+16582182282"}'
+  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+1XXXXXXXXXX"}'
 ```
 
 ---
@@ -30,10 +36,10 @@ curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads
 Bot knows they have no website from lead sheet. Pitches website first, upsells app + marketing.
 
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/lead \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"phone":"+16582182282","business_name":"Caribbean Eats","category":"restaurant","recommended_product":"Website","has_website":false,"notes":"No online presence. Pitch website J$50K. Upsell: App bundle 20% off, Marketing Starter.","market":"JA"}'
+  -d '{"phone":"+1XXXXXXXXXX","business_name":"Caribbean Eats","category":"restaurant","recommended_product":"Website","has_website":false,"notes":"No online presence. Pitch website J$50K. Upsell: App bundle 20% off, Marketing Starter.","market":"JA"}'
 ```
 
 | Stage | You say |
@@ -56,10 +62,10 @@ curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
 Bot skips basic website pitch entirely. Goes straight to App + Marketing + AI Bot upsell.
 
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/lead \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"phone":"+16582182282","business_name":"J Supreme Tech","category":"technology","recommended_product":"AI Sales Bot + Elite Marketing","has_website":true,"notes":"FOUNDER TEST. Already has website. Pitch: App, Elite Marketing US$2K/mo, AI Sales Bot expansion.","market":"US"}'
+  -d '{"phone":"+1XXXXXXXXXX","business_name":"J Supreme Tech","category":"technology","recommended_product":"AI Sales Bot + Elite Marketing","has_website":true,"notes":"FOUNDER TEST. Already has website. Pitch: App, Elite Marketing US$2K/mo, AI Sales Bot expansion.","market":"US"}'
 ```
 
 | Stage | You say |
@@ -80,10 +86,10 @@ curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
 ## SCENARIO 3 — MARKETING + AI BOT PITCH
 
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/lead \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"phone":"+16582182282","business_name":"Island Barbershop","category":"barbershop","recommended_product":"Marketing Starter + AI Chatbot","has_website":true,"notes":"Has website, no marketing. Pitch Starter J$30K/mo. AI bot included free.","market":"JA"}'
+  -d '{"phone":"+1XXXXXXXXXX","business_name":"Island Barbershop","category":"barbershop","recommended_product":"Marketing Starter + AI Chatbot","has_website":true,"notes":"Has website, no marketing. Pitch Starter J$30K/mo. AI bot included free.","market":"JA"}'
 ```
 
 | Stage | You say |
@@ -103,10 +109,10 @@ curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
 ## SCENARIO 4 — AI SALES BOT ONLY
 
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/lead \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"phone":"+16582182282","business_name":"Kingston Car Wash","category":"automotive","recommended_product":"AI Sales Bot","has_website":true,"notes":"Gets leads but loses them. Pitch AI Sales Bot US$50/mo or FREE with marketing package.","market":"JA"}'
+  -d '{"phone":"+1XXXXXXXXXX","business_name":"Kingston Car Wash","category":"automotive","recommended_product":"AI Sales Bot","has_website":true,"notes":"Gets leads but loses them. Pitch AI Sales Bot US$50/mo or FREE with marketing package.","market":"JA"}'
 ```
 
 | Stage | You say |
@@ -125,10 +131,10 @@ curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead \
 Cold call — tests every stage in order:
 
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/call \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/call \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"to":"+16582182282","bypass_hours":true,"bypass_dedup":true}'
+  -d '{"to":"+1XXXXXXXXXX","bypass_hours":true,"bypass_dedup":true}'
 ```
 
 | Stage | You say |
@@ -148,10 +154,10 @@ curl -X POST https://ample-exploration-production-ef51.up.railway.app/call \
 ## SCENARIO 6 — OBJECTION TESTS (cold call)
 
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/call \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/call \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"to":"+16582182282","bypass_hours":true,"bypass_dedup":true}'
+  -d '{"to":"+1XXXXXXXXXX","bypass_hours":true,"bypass_dedup":true}'
 ```
 
 | Objection | Say | Expected |

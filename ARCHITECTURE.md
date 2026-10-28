@@ -1,5 +1,10 @@
 # AI Sales Calling Bot — Architecture
 
+> This is a voice-sales application, not the Ferguson Law WhatsApp alert sender
+> or linked-device reader. Its WhatsApp notification hook is for this app's
+> voice-call reports to Jordan only. Ferguson Law alert routing is documented
+> in `ferg-law/docs/WHATSAPP-ALERTS-OPERATIONS.md`.
+
 ## Mission
 Outbound AI voice agent that calls local and international businesses — primarily those WITHOUT a website — and converts them to J Supreme Tech Supreme Suite free trials.
 

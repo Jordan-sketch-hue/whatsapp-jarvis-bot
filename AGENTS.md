@@ -1,9 +1,23 @@
-# AGENTS.md — ai-sales-bot
+# AGENTS.md — whatsapp-jarvis-bot
 
 > Handoff document for any Claude agent picking this project up cold.
 
 ## Purpose
 Outbound AI phone sales bot for J Supreme Tech. Calls businesses in Jamaica and other markets, runs a 12-stage sales conversation, logs outcomes to Railway Postgres, and notifies Jordan via WhatsApp webhook. Bot persona: **Kai** from J Supreme Tech.
+
+## Important system boundary
+
+This repository is **not** the Ferguson Law WhatsApp alert service and is not
+the Baileys reader. It is an AI voice-sales application. Its optional
+`WHATSAPP_NOTIFY_URL` call reports this app's voice-call outcomes to Jordan;
+it must not be used for client chat ingestion or Owen's Ferguson Law alerts.
+
+The separate linked-device reader lives in
+`Jordan-sketch-hue/jarvis-wa-reader`. Ferguson Law booking, appointment, and
+mailbox alerts originate from `Jordan-sketch-hue/ferg-law`, which uses the
+existing linked sender with different recipient JIDs. See
+`ferg-law/docs/WHATSAPP-ALERTS-OPERATIONS.md` for the cross-project routing and
+deployment record.
 
 ## Live URL
 `https://ample-exploration-production-ef51.up.railway.app`
@@ -17,7 +31,7 @@ Outbound AI phone sales bot for J Supreme Tech. Calls businesses in Jamaica and 
 - **TTS:** Rime AI REST API — model `coda`, voice `godfrey`, lang `eng`
 - **LLM:** Anthropic `claude-haiku-4-5-20251001` via HTTP (8s timeout)
 - **DB:** Railway Neon PostgreSQL (`DATABASE_URL` env var — Railway Postgres, NOT Supabase)
-- **Auth:** `x-admin-key: jst-sales-bot-2026` for all admin endpoints
+- **Auth:** admin endpoints require the private configured admin key; never put its value in source, logs, or documentation
 
 ## Key Files
 | File | Role |
@@ -281,48 +295,53 @@ follow_up   → [>= 2 turns]                  → end
 | `FROM_NUMBER` | Outbound caller ID (`+17547991892`) |
 | `DATABASE_URL` | Railway Postgres connection string |
 | `PUBLIC_URL` | Bot's Railway public URL (no trailing slash) |
-| `ADMIN_KEY` | `jst-sales-bot-2026` — gates all admin routes |
+| `ADMIN_KEY` | Configure privately in the deployment environment; never document its value |
 | `WHATSAPP_NOTIFY_URL` | Webhook to notify Jordan on call end |
 | `SIGNALWIRE_API_TOKEN` | Webhook signature validation token |
 
 ## Jordan Test Lead (pre-loaded in DB)
 
-Phone `+16582182282` has ONE slot in `sales_leads` (upsert by phone).  
+> The `/call` and `/call-leads` examples below can trigger real outbound
+> telephone calls. Never run them against production as routine validation.
+> Use a staging service and synthetic recipient, or obtain explicit
+> authorization before any production call.
+
+Phone `+1XXXXXXXXXX` has ONE slot in `sales_leads` (upsert by phone).
 **Current entry:** J Supreme Tech · has_website=true · AI Sales Bot + Elite Marketing  
 Run `/call-leads` with `phone_filter` to call yourself using whichever scenario is loaded.
 
 ### Trigger call (uses current lead data)
 > First run a scenario curl below to set the lead, THEN run this to dial.
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/call-leads \
-  -H "x-admin-key: jst-sales-bot-2026" \
+curl -X POST https://staging-host.example.invalid/call-leads \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+16582182282"}'
+  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+1XXXXXXXXXX"}'
 ```
 
 ### Swap scenarios (overwrite the lead, then trigger)
 
 **SCENARIO A — No Website (restaurant, JA market)**
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"Caribbean Eats","category":"restaurant","recommended_product":"Website","has_website":false,"notes":"No online presence. Pitch website J$50K. Upsell: App 20% off + $10-20 finalization discount. Marketing Starter AI bot FREE lifetime.","market":"JA"}'
+curl -X POST https://staging-host.example.invalid/lead   -H "x-admin-key: ${ADMIN_KEY}" -H "Content-Type: application/json"   -d '{"phone":"+1XXXXXXXXXX","business_name":"Caribbean Eats","category":"restaurant","recommended_product":"Website","has_website":false,"notes":"No online presence. Pitch website J$50K. Upsell: App 20% off + $10-20 finalization discount. Marketing Starter AI bot FREE lifetime.","market":"JA"}'
 ```
 Bot does: website pitch J$50K → mockup offer → app bundle + AI bot lifetime free
 
 **SCENARIO B — Has Website (founder/JST, US market) — DEFAULT**
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"J Supreme Tech","category":"technology","recommended_product":"AI Sales Bot + Elite Marketing","has_website":true,"notes":"FOUNDER TEST. Already has website. Pitch: App US$1,250, Elite Marketing US$2K/mo, AI Sales Bot FREE LIFETIME with marketing.","market":"US"}'
+curl -X POST https://staging-host.example.invalid/lead   -H "x-admin-key: ${ADMIN_KEY}" -H "Content-Type: application/json"   -d '{"phone":"+1XXXXXXXXXX","business_name":"J Supreme Tech","category":"technology","recommended_product":"AI Sales Bot + Elite Marketing","has_website":true,"notes":"FOUNDER TEST. Already has website. Pitch: App US$1,250, Elite Marketing US$2K/mo, AI Sales Bot FREE LIFETIME with marketing.","market":"US"}'
 ```
 Bot does: skips basic website → pitches App + Elite Marketing + AI bot free lifetime
 
 **SCENARIO C — Marketing + AI Bot (barbershop, JA)**
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"Island Barbershop","category":"barbershop","recommended_product":"Marketing Starter + AI Chatbot","has_website":true,"notes":"Has website, no marketing. Pitch Starter J$30K/mo. AI Sales Bot FREE LIFETIME with marketing.","market":"JA"}'
+curl -X POST https://staging-host.example.invalid/lead   -H "x-admin-key: ${ADMIN_KEY}" -H "Content-Type: application/json"   -d '{"phone":"+1XXXXXXXXXX","business_name":"Island Barbershop","category":"barbershop","recommended_product":"Marketing Starter + AI Chatbot","has_website":true,"notes":"Has website, no marketing. Pitch Starter J$30K/mo. AI Sales Bot FREE LIFETIME with marketing.","market":"JA"}'
 ```
 Bot does: Marketing Starter J$30K/mo → AI bot included free lifetime
 
 **SCENARIO D — AI Bot Only (car wash, JA)**
 ```bash
-curl -X POST https://ample-exploration-production-ef51.up.railway.app/lead   -H "x-admin-key: jst-sales-bot-2026" -H "Content-Type: application/json"   -d '{"phone":"+16582182282","business_name":"Kingston Car Wash","category":"automotive","recommended_product":"AI Sales Bot","has_website":true,"notes":"Gets leads but loses them. Pitch AI Sales Bot — FREE with any marketing package.","market":"JA"}'
+curl -X POST https://staging-host.example.invalid/lead   -H "x-admin-key: ${ADMIN_KEY}" -H "Content-Type: application/json"   -d '{"phone":"+1XXXXXXXXXX","business_name":"Kingston Car Wash","category":"automotive","recommended_product":"AI Sales Bot","has_website":true,"notes":"Gets leads but loses them. Pitch AI Sales Bot — FREE with any marketing package.","market":"JA"}'
 ```
 Bot does: leads with AI bot pitch → FREE with marketing package
 
@@ -343,7 +362,7 @@ Bot does: leads with AI bot pitch → FREE with marketing package
 # 3. git add . && git commit -m "..." && git push origin master
 # 4. railway up --service d2e0d188-8e0c-4a20-83e6-df16f6fc9ec0 \
 #              --environment 369713c4-10ca-43ec-8300-b54dcbab6c82 --detach
-# 5. curl https://ample-exploration-production-ef51.up.railway.app/health
+# 5. curl https://staging-host.example.invalid/health
 # 6. Test call: POST /call with x-admin-key
 ```
 
@@ -354,20 +373,20 @@ Bot does: leads with AI bot pitch → FREE with marketing package
 ### Pattern A — Cold call (no lead context)
 ```bash
 # Dials immediately — Kai doesn't know the company, qualifies from scratch
-curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call" \
+curl -X POST "https://staging-host.example.invalid/call" \
   -H "Content-Type: application/json" \
-  -H "x-admin-key: jst-sales-bot-2026" \
-  -d '{"to":"+16582182282","bypass_hours":true,"bypass_dedup":true}'
+  -H "x-admin-key: ${ADMIN_KEY}" \
+  -d '{"to":"+1XXXXXXXXXX","bypass_hours":true,"bypass_dedup":true}'
 ```
 
 ### Pattern B — Lead call (two steps — insert THEN dial)
 ```bash
 # Step 1: Insert/overwrite the lead (DB write only — NO call yet)
-curl -X POST "https://ample-exploration-production-ef51.up.railway.app/lead" \
+curl -X POST "https://staging-host.example.invalid/lead" \
   -H "Content-Type: application/json" \
-  -H "x-admin-key: jst-sales-bot-2026" \
+  -H "x-admin-key: ${ADMIN_KEY}" \
   -d '{
-    "phone":"+16582182282",
+    "phone":"+1XXXXXXXXXX",
     "business_name":"J Supreme Tech",
     "category":"technology",
     "recommended_product":"AI Sales Bot + Website Revamp",
@@ -377,10 +396,10 @@ curl -X POST "https://ample-exploration-production-ef51.up.railway.app/lead" \
   }'
 
 # Step 2: Dial the lead (this is what actually triggers the Telnyx call)
-curl -X POST "https://ample-exploration-production-ef51.up.railway.app/call-leads" \
+curl -X POST "https://staging-host.example.invalid/call-leads" \
   -H "Content-Type: application/json" \
-  -H "x-admin-key: jst-sales-bot-2026" \
-  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+16582182282"}'
+  -H "x-admin-key: ${ADMIN_KEY}" \
+  -d '{"limit":1,"bypass_hours":true,"bypass_dedup":true,"phone_filter":"+1XXXXXXXXXX"}'
 ```
 
 ## Known Gotchas
