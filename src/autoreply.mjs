@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Contextual, clients-ONLY auto-reply powered by Claude.
  *
  * Fires only when ALL hold:
@@ -126,7 +126,7 @@ async function buildContextualReply(label, transcript) {
 function buildFallback(label) {
   const first = (label || "").split(/[\s—-]+/).filter(Boolean)[0] || "there";
   const hours = process.env.OFFICE_HOURS || "Mon–Fri, 9am–5pm (Jamaica)";
-  return `Hi ${first} 🙏 thanks for reaching out — Jordan's got your message and will get back to you personally shortly. Office hours: ${hours}.\n— Jordan, J Supreme`;
+  return `Hi ${first}, thanks for reaching out. Jordan has your message and will respond personally. Office hours: ${hours}.\n— Jordan, J Supreme`;
 }
 
 /* ─── Main export ──────────────────────────────────────────────────────────── */
