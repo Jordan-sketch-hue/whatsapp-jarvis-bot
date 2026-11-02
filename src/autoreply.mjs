@@ -134,7 +134,7 @@ function buildFallback(label) {
 /**
  * @param {{sock, chatId, phone, isGroup, settings, transcript}} opts
  */
-export async function maybeAutoReply({ sock, chatId, phone, isGroup, settings, transcript = [] }) {
+export async function maybeAutoReply({ sock, chatId, phone, isGroup, settings, transcript = [], onSent }) {
   if (settings?.autoreply_enabled === false) return false;
   if (isGroup) return false;
   if (!sock) return false;

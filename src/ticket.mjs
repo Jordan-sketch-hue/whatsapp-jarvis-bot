@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Auto-create ops_tickets from WhatsApp extractions.
  *
  * Flow:
@@ -118,7 +118,7 @@ async function sendPushAlert(ticketRef, name, phone, extraction) {
  * @param {Array}    opts.transcript Full conversation buffer (last ~20 msgs)
  * @param {object}   [opts.sock]     Baileys socket for sending the ACK
  */
-export async function maybeCreateTicket({ chatId, name, phone, extraction, message, transcript = [], sock }) {
+export async function maybeCreateTicket({ chatId, name, phone, extraction, message, transcript = [], sock, onSent }) {
   if (!isTicketWorthy(extraction)) return;
 
   const fullText = buildTranscript(transcript.length ? transcript : [message]);

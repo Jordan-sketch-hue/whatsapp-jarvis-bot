@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WhatsApp → Jarvis reader.
  *
  * Links Jordan's WhatsApp Business number as a "linked device" (one QR scan),
@@ -48,6 +48,10 @@ setInterval(async () => {
     settings = await getSettings();
   } catch {}
 }, 60_000);
+  // Keep lastEventAt fresh — WhatsApp shows "Active" only with recent activity
+  setInterval(() => {
+    if (shared.linked) shared.lastEventAt = new Date().toISOString();
+  }, 5 * 60_000);
 
 /* ------------------------------- message plumbing ------------------------------- */
 
@@ -123,7 +127,7 @@ async function flush(chatId) {
     });
     console.log(`[card] ${buf.name || phone}: [${extraction.category}/${extraction.priority}] ${extraction.summary}`);
     void notifyClientMessage({ clientName: buf.name, phone, extraction, transcript: buf.transcript });
-    void maybeCreateTicket({ chatId, name: buf.name, phone, extraction, message: latest, transcript: buf.transcript, sock: shared.sock });
+    void maybeCreateTicket({ chatId, name: buf.name, phone, extraction, message: latest, transcript: buf.transcript, sock: shared.sock, onSent: () => { shared.lastEventAt = new Date().toISOString(); } });
   } catch (e) {
     logger.error({ e: e.message }, "write failed");
   }
