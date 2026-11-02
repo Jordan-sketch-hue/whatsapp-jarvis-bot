@@ -48,10 +48,18 @@ setInterval(async () => {
     settings = await getSettings();
   } catch {}
 }, 60_000);
-  // Keep lastEventAt fresh — WhatsApp shows "Active" only with recent activity
-  setInterval(() => {
-    if (shared.linked) shared.lastEventAt = new Date().toISOString();
-  }, 5 * 60_000);
+
+  // Ping WA servers every 4 min so Linked Devices always shows "Active"
+  setInterval(async () => {
+    if (!shared.linked || !shared.sock) return;
+    try {
+      await shared.sock.sendPresenceUpdate("available");
+      shared.lastEventAt = new Date().toISOString();
+      console.log("[keepalive] presence ping sent");
+    } catch (e) {
+      console.error("[keepalive] presence ping failed:", e?.message);
+    }
+  }, 4 * 60_000);
 
 /* ------------------------------- message plumbing ------------------------------- */
 
