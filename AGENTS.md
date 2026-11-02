@@ -47,19 +47,25 @@ clients.json      Client allowlist { phone: "Name — Company" }
 
 ---
 
-## Activity Keepalive (CRITICAL)
+## Activity Keepalive (CRITICAL — commit 99f9057)
 
-WhatsApp shows "Active" only when `lastEventAt` is recent.
+WhatsApp "Activity" on Linked Devices is driven by **actual WS presence packets sent to WA servers**.
+Bumping an in-memory variable does nothing. Fix: call `sock.sendPresenceUpdate("available")` on a timer.
 
-**Three mechanisms (all required, commit `faed627`):**
-1. `index.mjs` `setInterval` — bumps `shared.lastEventAt` every 5 min while linked
-2. `autoreply.mjs` `onSent` callback — bumps immediately after every outbound auto-reply
-3. `ticket.mjs` `onSent` callback — bumps immediately after every ticket ack send
+**Three mechanisms (all required):**
+1. `index.mjs` `setInterval` every 4 min — calls `sock.sendPresenceUpdate("available")` which pings WA
+   servers; also bumps `shared.lastEventAt` so `/healthz` reflects it
+2. `autoreply.mjs` `onSent` callback — bumps `shared.lastEventAt` after every outbound auto-reply
+3. `ticket.mjs` `onSent` callback — bumps `shared.lastEventAt` after every ticket ack send
 
-**NEVER remove these.** If WhatsApp shows "last active X ago" after a deploy:
+**NEVER remove the `sendPresenceUpdate` interval.** `shared.lastEventAt` alone does NOTHING to WA.
+
+If WhatsApp shows "last active X ago" after a deploy:
 1. Check `GET /healthz` → `linked: true`?
-2. Check commit `faed627`+ is deployed
-3. If `linked: false`, scan QR at `/qr?token=jst-qr-2026`
+2. Check commit `99f9057`+ is deployed (sendPresenceUpdate fix)
+3. Wait up to 4 min for first presence ping — then check phone again
+4. If still stuck: `/healthz` linked but phone shows stale → presence ping may be blocked; check Railway logs
+5. If `linked: false`, scan QR at `/qr?token=jst-qr-2026`
 
 ---
 
